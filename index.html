@@ -572,8 +572,7 @@ window.setTF = async function(tf) {
         '30': '30min',
         '60': '1h',
         '240': '4h',
-        'D': '1d',
-        'W': '1w'
+        'D': '1d'
     };
     
     const tfName = tfMap[tf] || '1h';
@@ -620,8 +619,7 @@ window.setTF = async function(tf) {
             '30min': 150,
             '1h': 120,
             '4h': 90,
-            '1d': 60,
-            '1w': 52
+            '1d': 60
         };
         
         vCount = Math.min(defaultCounts[tfName] || 120, data.length);
@@ -629,7 +627,7 @@ window.setTF = async function(tf) {
         
         load.style.display = 'none';
         resize();
-        console.log(`✓ ${data.length} ${tfName} candles loaded`);
+        console.log(`✓ ${data.length.toLocaleString()} ${tfName} candles loaded`);
     } catch (e) {
         load.querySelector('.load-text').textContent = `Error loading ${tfName} data`;
         console.error(e);

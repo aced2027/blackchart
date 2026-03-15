@@ -1,8 +1,10 @@
 # Large data files
 backend/data/ticks/
 *.csv
-candles_*.json
-tradingview_candles.json
+# Exclude 1min candles (too large for GitHub - 142MB)
+candles_1min.json
+# Allow other timeframe candles for chart functionality
+# tradingview_candles.json
 
 # Python cache
 __pycache__/

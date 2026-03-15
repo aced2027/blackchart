@@ -1,8 +1,8 @@
 # Large data files
 backend/data/ticks/
 *.csv
-# Exclude 1min candles (too large for GitHub - 142MB)
-candles_1min.json
+# 1min candles now handled by Git LFS
+# candles_1min.json
 # Allow other timeframe candles for chart functionality
 # tradingview_candles.json
 

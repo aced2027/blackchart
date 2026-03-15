@@ -1,0 +1,65 @@
+import aiohttp
+import asyncio
+from datetime import datetime
+from typing import Optional, Dict
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class OandaClient:
+    def __init__(self):
+        self.api_key = os.getenv("OANDA_API_KEY")
+        self.account_id = os.getenv("OANDA_ACCOUNT_ID")
+        self.base_url = os.getenv("OANDA_API_URL", "https://api-fxpractice.oanda.com")
+        self.session: Optional[aiohttp.ClientSession] = None
+
+    async def connect(self):
+        self.session = aiohttp.ClientSession(
+            headers={"Authorization": f"Bearer {self.api_key}"}
+        )
+
+    async def close(self):
+        if self.session:
+            await self.session.close()
+
+    async def get_latest_price(self, instrument: str = "EUR_USD") -> Optional[Dict]:
+        """Fetch latest tick price"""
+        if not self.session:
+            await self.connect()
+        
+        try:
+            url = f"{self.base_url}/v3/accounts/{self.account_id}/pricing"
+            params = {"instruments": instrument}
+            
+            async with self.session.get(url, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get("prices"):
+                        price = data["prices"][0]
+                        return {
+                            "symbol": instrument.replace("_", ""),
+                            "bid": float(price["bids"][0]["price"]),
+                            "ask": float(price["asks"][0]["price"]),
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+        except Exception as e:
+            print(f"Error fetching price: {e}")
+        
+        return None
+
+    async def stream_prices(self, instrument: str = "EUR_USD"):
+        """Stream real-time prices"""
+        if not self.session:
+            await self.connect()
+        
+        url = f"{self.base_url}/v3/accounts/{self.account_id}/pricing/stream"
+        params = {"instruments": instrument}
+        
+        try:
+            async with self.session.get(url, params=params) as response:
+                async for line in response.content:
+                    if line:
+                        yield line
+        except Exception as e:
+            print(f"Stream error: {e}")

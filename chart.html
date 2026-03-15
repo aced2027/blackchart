@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniView Chart</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0b0e17;color:#d1d4dc;font-family:monospace;overflow:hidden;user-select:none}
+#app{display:flex;flex-direction:column;height:100vh}
+#topbar{height:44px;background:#131722;border-bottom:1px solid #1e2230;display:flex;align-items:center;padding:0 12px;gap:12px}
+.tb-sym{color:#fff;font-size:14px;font-weight:700}
+.tb-price{font-size:14px;font-weight:600;min-width:80px}
+.tb-chg{font-size:11px;min-width:60px}
+.tb-ohlc{font-size:10px;color:#787b86;display:flex;gap:10px}
+#tf-bar{height:32px;background:#131722;border-bottom:1px solid #1e2230;display:flex;align-items:center;padding:0 10px;gap:2px}
+.tf-btn{background:none;border:none;color:#787b86;font:11px monospace;padding:3px 8px;border-radius:3px;cursor:pointer}
+.tf-btn:hover{background:#1e2230;color:#d1d4dc}
+.tf-btn.active{background:#2962ff;color:#fff}
+#ws-status{margin-left:auto;font-size:10px;display:flex;align-items:center;gap:5px;color:#787b86}
+.dot{width:7px;height:7px;border-radius:50%;background:#434651}
+.dot.live{background:#26a69a;box-shadow:0 0 6px #26a69a88}
+.dot.error{background:#ef5350}
+.dot.closed{background:#f0b429}
+#chartgrid{flex:1;display:grid;grid-template-columns:1fr 62px;grid-template-rows:1fr 30px;min-height:0}
+canvas{display:block}
+#cv-main{cursor:crosshair}
+#cv-price,#cv-time{background:#0b0e17}
+#cv-price{border-left:1px solid #1e2230}
+#cv-time{border-top:1px solid #1e2230}
+#corner{background:#0b0e17;border-left:1px solid #1e2230;border-top:1px solid #1e2230}
+#live-badge{position:fixed;top:82px;right:72px;background:#26a69a22;border:1px solid #26a69a55;color:#26a69a;font-size:9px;padding:2px 7px;border-radius:3px;opacity:0;transition:opacity .4s}
+#live-badge.show{opacity:1}
+#closed-overlay{display:none;position:fixed;inset:76px 62px 30px 0;background:rgba(11,14,23,.75);align-items:center;justify-content:center;flex-direction:column;gap:8px;z-index:20}
+#closed-overlay.show{display:flex}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="topbar">
+<span class="tb-sym" id="tb-sym">EUR/USD</span>
+<span class="tb-price" id="tb-price" style="color:#26a69a">──────</span>
+<span class="tb-chg" id="tb-chg"></span>
+<div class="tb-ohlc" id="tb-ohlc" style="display:none">
+<span>O:<b id="o-val"></b></span>
+<span>H:<b id="h-val" style="color:#26a69a"></b></span>
+<span>L:<b id="l-val" style="color:#ef5350"></b></span>
+<span>C:<b id="c-val"></b></span>
+</div>
+<div id="ws-status">
+<div class="dot" id="dot"></div>
+<span id="ws-label">Connecting…</span>
+</div>
+</div>
+<div id="tf-bar">
+<button class="tf-btn active" data-tf="1m">1m</button>
+<button class="tf-btn" data-tf="5m">5m</button>
+<button class="tf-btn" data-tf="15m">15m</button>
+<button class="tf-btn" data-tf="1h">1H</button>
+<button class="tf-btn" data-tf="1d">1D</button>
+<button class="tf-btn" data-tf="1w">1W</button>
+<button class="tf-btn" data-tf="1M">1M</button>
+</div>
+<div id="chartgrid">
+<canvas id="cv-main"></canvas>
+<canvas id="cv-price"></canvas>
+<canvas id="cv-time"></canvas>
+<div id="corner"></div>
+</div>
+</div>
+<div id="live-badge">● LIVE</div>
+<div id="closed-overlay">
+<div style="font-size:32px">🌙</div>
+<div style="font-size:13px;color:#f0b429">Market Closed</div>
+<div style="font-size:10px;color:#787b86" id="reopen-msg">Reopens Monday 00:00 UTC</div>
+</div>
+<script>

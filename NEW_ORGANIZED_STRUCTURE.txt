@@ -1,0 +1,121 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         NEW ORGANIZED TICK DATA STRUCTURE                        ║
+║         Clean Start - Year by Year Folders                       ║
+╚══════════════════════════════════════════════════════════════════╝
+
+✅ OLD DATA DELETED
+✅ NEW FOLDER STRUCTURE CREATED
+✅ READY FOR FRESH DOWNLOAD
+
+═══════════════════════════════════════════════════════════════════
+NEW FOLDER STRUCTURE
+═══════════════════════════════════════════════════════════════════
+
+data/
+└── ticks/
+    ├── 2020/
+    │   ├── eurusd_ticks_2020-01.csv
+    │   ├── eurusd_ticks_2020-02.csv
+    │   └── ... (12 months)
+    ├── 2021/
+    │   ├── eurusd_ticks_2021-01.csv
+    │   └── ... (12 months)
+    ├── 2022/
+    │   └── ... (12 months)
+    ├── 2023/
+    │   └── ... (12 months)
+    ├── 2024/
+    │   └── ... (12 months)
+    ├── 2025/
+    │   └── ... (12 months)
+    └── 2026/
+        ├── eurusd_ticks_2026-01.csv
+        ├── eurusd_ticks_2026-02.csv
+        └── eurusd_ticks_2026-03.csv (3 months only)
+
+═══════════════════════════════════════════════════════════════════
+DOWNLOAD COMMANDS
+═══════════════════════════════════════════════════════════════════
+
+# Download ALL years (2020-2026)
+python download_organized_by_year.py
+
+# Download specific years
+python download_organized_by_year.py 2020 2021 2022 2023
+
+# Download single year
+python download_single_year.py 2025
+
+# Download individual years
+python download_single_year.py 2020
+python download_single_year.py 2021
+python download_single_year.py 2022
+python download_single_year.py 2023
+python download_single_year.py 2024
+python download_single_year.py 2025
+python download_single_year.py 2026
+
+═══════════════════════════════════════════════════════════════════
+CHECK STATUS
+═══════════════════════════════════════════════════════════════════
+
+# Check what's downloaded (year by year, month by month)
+python check_organized_status.py
+
+═══════════════════════════════════════════════════════════════════
+CURRENT STATUS
+═══════════════════════════════════════════════════════════════════
+
+2020: ❌ 0/12 months - Missing: All
+2021: ❌ 0/12 months - Missing: All
+2022: ❌ 0/12 months - Missing: All
+2023: ❌ 0/12 months - Missing: All
+2024: ❌ 0/12 months - Missing: All (including September)
+2025: ❌ 0/12 months - Missing: All
+2026: ❌ 0/3 months - Missing: All
+
+Total: 0/75 months (0.0%)
+
+═══════════════════════════════════════════════════════════════════
+RECOMMENDED DOWNLOAD ORDER
+═══════════════════════════════════════════════════════════════════
+
+Option 1: Download all at once (10-15 hours)
+  python download_organized_by_year.py
+
+Option 2: Download year by year (1.5-2.5 hours each)
+  python download_single_year.py 2025  # Start with 2025
+  python download_single_year.py 2024  # Then 2024
+  python download_single_year.py 2023  # Then 2023
+  ... and so on
+
+Option 3: Priority download (September 2024 first)
+  python download_single_year.py 2024  # Gets Sept 2024
+  python download_single_year.py 2025  # Current year
+  python download_organized_by_year.py 2020 2021 2022 2023 2026
+
+═══════════════════════════════════════════════════════════════════
+BENEFITS OF NEW STRUCTURE
+═══════════════════════════════════════════════════════════════════
+
+✅ Organized by year - Easy to find data
+✅ Separate folders - Better file management
+✅ Clean structure - No mixed files
+✅ Easy backup - Backup individual years
+✅ Easy deletion - Delete old years easily
+✅ Clear status - See progress per year
+
+═══════════════════════════════════════════════════════════════════
+AFTER DOWNLOAD
+═══════════════════════════════════════════════════════════════════
+
+1. Check status:
+   python check_organized_status.py
+
+2. Generate candles:
+   python generate_candles_fast.py
+
+3. Restart backend:
+   python main.py
+
+═══════════════════════════════════════════════════════════════════

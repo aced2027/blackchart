@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🕯️ Live Candlestick Chart - Tick Data Engine</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Courier New', monospace; 
+            background: #131722; 
+            color: #d1d4dc; 
+            overflow: hidden;
+        }
+        
+        .container { 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+        }
+        
+        .top-bar {
+            height: 50px;
+            background: #1a1d27;
+            border-bottom: 1px solid #2a2e39;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        select, input, button {
+            background: #131722;
+            border: 1px solid #2a2e39;
+            border-radius: 4px;
+            padding: 6px 10px;
+            color: #d1d4dc;
+            font-size: 12px;
+            font-family: inherit;
+        }
+        
+        button {
+            background: #2962ff;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        button:hover { background: #1e4db7; }
+        button:disabled { background: #2a2e39; cursor: not-allowed; }
+        
+        .timeframe-buttons {
+            display: flex;
+            gap: 2px;
+        }
+        
+        .timeframe-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            background: transparent;
+            border: 1px solid #2a2e39;
+        }
+        
+        .timeframe-btn.active {
+            background: #2962ff;
+            color: white;
+        }
+        
+        .status {
+            margin-left: auto;
+            font-size: 11px;
+            color: #787b86;
+        }
+        
+        .chart-container {
+            flex: 1;
+            position: relative;
+            background: #131722;
+        }
+        
+        #chart {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(30, 34, 45, 0.95);
+            border: 1px solid #2a2e39;
+            border-radius: 4px;
+            padding: 8px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .ohlc-bar {
+            height: 30px;
+            background: #1a1d27;
+            border-bottom: 1px solid #2a2e39;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 20px;
+            font-size: 12px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #2a2e39;
+            border-top: 2px solid #2962ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            color: #ef5350;
+            background: rgba(239, 83, 80, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Control Bar -->
+        <div class="top-bar">
+            <div class="control-group">
+                <label>Source:</label>
+                <select id="dataSource">
+                    <option value="binance">Binance (Crypto)</option>
+                    <option value="alphavantage">Alpha Vantage (Stocks)</option>
+                    <option value="yahoo">Yahoo Finance</option>
+                    <option value="csv">CSV Upload</option>
+                    <option value="simulation" selected>Simulation</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Symbol:</label>
+                <input type="text" id="symbolInput" value="BTCUSDT" placeholder="BTCUSDT">
+            </div>
+            
+            <div class="control-group">
+                <label>API Key:</label>
+                <input type="text" id="apiKey" placeholder="Alpha Vantage key" style="display:none;">
+            </div>
+            
+            <div class="control-group">
+                <input type="file" id="csvFile" accept=".csv" style="display:none;">
+            </div>
+            
+            <div class="timeframe-buttons">
+                <button class="timeframe-btn" data-tf="1m">1m</button>
+                <button class="timeframe-btn" data-tf="5m">5m</button>
+                <button class="timeframe-btn" data-tf="15m">15m</button>
+                <button class="timeframe-btn active" data-tf="1h">1h</button>
+                <button class="timeframe-btn" data-tf="4h">4h</button>
+                <button class="timeframe-btn" data-tf="1d">1d</button>
+                <button class="timeframe-btn" data-tf="1w">1w</button>
+            </div>
+            
+            <button id="downloadBtn">📥 Download</button>
+            
+            <div class="status" id="status">Ready</div>
+        </div>
+        
+        <!-- OHLC Summary Bar -->
+        <div class="ohlc-bar" id="ohlcBar">
+            <span id="symbolDisplay">BTCUSDT</span>
+            <span>O: <span id="openVal">-</span></span>
+            <span>H: <span id="highVal">-</span></span>
+            <span>L: <span id="lowVal">-</span></span>
+            <span>C: <span id="closeVal">-</span></span>
+            <span>V: <span id="volumeVal">-</span></span>
+            <span id="changeVal">-</span>
+        </div>
+        
+        <!-- Chart Canvas -->
+        <div class="chart-container">
+            <canvas id="chart"></canvas>
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+    </div>
+    <script>
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // GLOBAL STATE & CONFIGURATION
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        const INTERVALS = {
+            '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000,
+            '30m': 1800000, '1h': 3600000, '4h': 14400000,
+            '1d': 86400000, '1w': 604800000
+        };
+        
+        const COLORS = {
+            background: '#131722',
+            grid: 'rgba(42, 46, 57, 0.8)',
+            axisText: '#787b86',
+            bullBody: '#26a69a',
+            bullWick: '#26a69a',
+            bearBody: '#ef5350',
+            bearWick: '#ef5350',
+            crosshair: 'rgba(255,255,255,0.3)',
+            priceLine: '#2962ff'
+        };
+        
+        let state = {
+            candles: new Float64Array(0), // [t,o,h,l,c,v] per candle
+            candleCount: 0,
+            currentSymbol: 'BTCUSDT',
+            currentTimeframe: '1h',
+            visibleStart: 0,
+            visibleEnd: 100,
+            isDragging: false,
+            dragStartX: 0,
+            dragStartIdx: 0,
+            mouseX: 0,
+            mouseY: 0,
+            hoveredCandle: null,
+            priceMin: 0,
+            priceMax: 0,
+            isLoading: false
+        };
+        
+        let canvas, ctx, tooltip;
+        
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // INITIALIZATION
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('chart');
+            ctx = canvas.getContext('2d');
+            tooltip = document.getElementById('tooltip');
+            
+            setupEventListeners();
+            setupCanvas();
+            
+            // Self-test on load
+            runSelfTest();
+        });
+        
+        function setupEventListeners() {
+            // Data source change
+            document.getElementById('dataSource').addEventListener('change', (e) => {
+                const source = e.target.value;
+                const apiKey = document.getElementById('apiKey');
+                const csvFile = document.getElementById('csvFile');
+                
+                apiKey.style.display = source === 'alphavantage' ? 'block' : 'none';
+                csvFile.style.display = source === 'csv' ? 'block' : 'none';
+            });
+            
+            // Timeframe buttons
+            document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelector('.timeframe-btn.active').classList.remove('active');
+                    e.target.classList.add('active');
+                    state.currentTimeframe = e.target.dataset.tf;
+                    
+                    if (state.candleCount > 0) {
+                        aggregateAndRender();
+                    }
+                });
+            });
+            
+            // Download button
+            document.getElementById('downloadBtn').addEventListener('click', downloadData);
+            
+            // CSV file upload
+            document.getElementById('csvFile').addEventListener('change', handleCSVUpload);
+            
+            // Canvas mouse events
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseLeave);
+            canvas.addEventListener('wheel', handleWheel, { passive: false });
+            
+            // Window resize
+            window.addEventListener('resize', setupCanvas);
+        }
+        
+        function setupCanvas() {
+            const container = canvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            if (state.candleCount > 0) {
+                requestAnimationFrame(render);
+            }
+        }
+        
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // DATA DOWNLOAD ENGINES
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        async function downloadData() {
+            const source = document.getElementById('dataSource').value;
+            const symbol = document.getElementById('symbolInput').value.toUpperCase();
+            
+            if (!symbol) {
+                showError('Please enter a symbol');
+                return;
+            }
+            
+            state.currentSymbol = symbol;
+            document.getElementById('symbolDisplay').textContent = symbol;
+            
+            setLoading(true);
+            
+            try {
+                let data = [];
+                
+                switch (source) {
+                    case 'binance':
+                        data = await downloadBinance(symbol);
+                        break;
+                    case 'alphavantage':
+                        data = await downloadAlphaVantage(symbol);
+                        break;
+                    case 'yahoo':
+                        data = await downloadYahoo(symbol);
+                        break;
+                    case 'simulation':
+                        data = generateSimulatedData(1000);
+                        break;
+                    default:
+                        throw new Error('Unknown data source');
+                }
+                
+                if (data.length === 0) {
+                    throw new Error('No data received');
+                }
+                
+                processRawData(data);
+                showStatus(`Loaded ${data.length} candles`);
+                
+            } catch (error) {
+                showError(`Download failed: ${error.message}`);
+                // Fallback to simulation
+                const fallbackData = generateSimulatedData(500);
+                processRawData(fallbackData);
+                showStatus('Using simulated data (download failed)');
+            }
+            
+            setLoading(false);
+        }
+        
+        async function downloadBinance(symbol) {
+            const url = 'https://api.binance.com/api/v3/klines';
+            const params = new URLSearchParams({
+                symbol: symbol,
+                interval: state.currentTimeframe,
+                limit: '1000'
+            });
+            
+            const response = await fetch(`${url}?${params}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            return data.map(row => ({
+                t: parseInt(row[0]),
+                o: parseFloat(row[1]),
+                h: parseFloat(row[2]),
+                l: parseFloat(row[3]),
+                c: parseFloat(row[4]),
+                v: parseFloat(row[5])
+            }));
+        }
+        
+        async function downloadAlphaVantage(symbol) {
+            const apiKey = document.getElementById('apiKey').value;
+            if (!apiKey) throw new Error('API key required for Alpha Vantage');
+            
+            const url = 'https://www.alphavantage.co/query';
+            const params = new URLSearchParams({
+                function: 'TIME_SERIES_INTRADAY',
+                symbol: symbol,
+                interval: '5min',
+                apikey: apiKey,
+                outputsize: 'full'
+            });
+            
+            const response = await fetch(`${url}?${params}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            const timeSeries = data['Time Series (5min)'];
+            
+            if (!timeSeries) throw new Error('Invalid response format');
+            
+            return Object.entries(timeSeries).map(([time, values]) => ({
+                t: new Date(time).getTime(),
+                o: parseFloat(values['1. open']),
+                h: parseFloat(values['2. high']),
+                l: parseFloat(values['3. low']),
+                c: parseFloat(values['4. close']),
+                v: parseFloat(values['5. volume'])
+            })).sort((a, b) => a.t - b.t);
+        }
+        
+        async function downloadYahoo(symbol) {
+            const baseUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol;
+            const params = new URLSearchParams({
+                interval: '1m',
+                range: '1d'
+            });
+            
+            const proxyUrl = 'https://api.allorigins.win/raw?url=' + 
+                           encodeURIComponent(`${baseUrl}?${params}`);
+            
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            const result = data.chart.result[0];
+            
+            if (!result) throw new Error('No data in response');
+            
+            const timestamps = result.timestamp;
+            const quotes = result.indicators.quote[0];
+            
+            return timestamps.map((t, i) => ({
+                t: t * 1000,
+                o: quotes.open[i] || 0,
+                h: quotes.high[i] || 0,
+                l: quotes.low[i] || 0,
+                c: quotes.close[i] || 0,
+                v: quotes.volume[i] || 0
+            })).filter(candle => candle.o > 0); // Remove invalid candles
+        }
+        function generateSimulatedData(count) {
+            const data = [];
+            let price = 45000; // Starting BTC price
+            const now = Date.now();
+            const interval = INTERVALS[state.currentTimeframe];
+            
+            for (let i = 0; i < count; i++) {
+                const timestamp = now - (count - i) * interval;
+                
+                // Random walk with volatility clustering
+                const volatility = 0.02 + Math.random() * 0.03;
+                const change = (Math.random() - 0.5) * volatility * price;
+                
+                const open = price;
+                const close = price + change;
+                const high = Math.max(open, close) + Math.random() * Math.abs(change) * 0.5;
+                const low = Math.min(open, close) - Math.random() * Math.abs(change) * 0.5;
+                const volume = 100 + Math.random() * 1000;
+                
+                data.push({
+                    t: timestamp,
+                    o: Math.round(open * 100) / 100,
+                    h: Math.round(high * 100) / 100,
+                    l: Math.round(low * 100) / 100,
+                    c: Math.round(close * 100) / 100,
+                    v: Math.round(volume * 100) / 100
+                });
+                
+                price = close;
+            }
+            
+            return data;
+        }
+        
+        function handleCSVUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const csv = e.target.result;
+                    const data = parseCSV(csv);
+                    processRawData(data);
+                    showStatus(`Loaded ${data.length} candles from CSV`);
+                } catch (error) {
+                    showError(`CSV parse error: ${error.message}`);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+            
+            // Auto-detect column indices
+            const getIndex = (names) => {
+                for (const name of names) {
+                    const idx = headers.indexOf(name);
+                    if (idx !== -1) return idx;
+                }
+                return -1;
+            };
+            
+            const timeIdx = getIndex(['timestamp', 'time', 'date']);
+            const openIdx = getIndex(['open', 'o']);
+            const highIdx = getIndex(['high', 'h']);
+            const lowIdx = getIndex(['low', 'l']);
+            const closeIdx = getIndex(['close', 'c']);
+            const volumeIdx = getIndex(['volume', 'v', 'vol']);
+            
+            if (timeIdx === -1 || openIdx === -1 || highIdx === -1 || 
+                lowIdx === -1 || closeIdx === -1) {
+                throw new Error('Missing required columns (timestamp, open, high, low, close)');
+            }
+            
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim());
+                
+                try {
+                    let timestamp = cols[timeIdx];
+                    
+                    // Auto-detect timestamp format
+                    if (isNaN(timestamp)) {
+                        timestamp = new Date(timestamp).getTime();
+                    } else {
+                        timestamp = parseInt(timestamp);
+                        // Convert seconds to milliseconds if needed
+                        if (timestamp < 1e12) timestamp *= 1000;
+                    }
+                    
+                    const candle = {
+                        t: timestamp,
+                        o: parseFloat(cols[openIdx]),
+                        h: parseFloat(cols[highIdx]),
+                        l: parseFloat(cols[lowIdx]),
+                        c: parseFloat(cols[closeIdx]),
+                        v: volumeIdx !== -1 ? parseFloat(cols[volumeIdx]) : 0
+                    };
+                    
+                    // Validate candle
+                    if (validateCandle(candle)) {
+                        data.push(candle);
+                    }
+                } catch (error) {
+                    console.warn(`Skipping invalid row ${i}: ${error.message}`);
+                }
+            }
+            
+            return data.sort((a, b) => a.t - b.t);
+        }
+        
+        function validateCandle(candle) {
+            return !isNaN(candle.t) && !isNaN(candle.o) && !isNaN(candle.h) && 
+                   !isNaN(candle.l) && !isNaN(candle.c) && 
+                   candle.h >= Math.max(candle.o, candle.c) &&
+                   candle.l <= Math.min(candle.o, candle.c);
+        }
+        
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // TICK AGGREGATION ENGINE
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        function aggregateTicks(ticks, intervalMs) {
+            if (!ticks || ticks.length === 0) return [];
+            
+            const buckets = new Map();
+            
+            // Single-pass O(n) aggregation
+            for (const tick of ticks) {
+                const bucketTime = Math.floor(tick.t / intervalMs) * intervalMs;
+                
+                if (!buckets.has(bucketTime)) {
+                    buckets.set(bucketTime, {
+                        t: bucketTime,
+                        o: tick.o,
+                        h: tick.h,
+                        l: tick.l,
+                        c: tick.c,
+                        v: tick.v,
+                        count: 1
+                    });
+                } else {
+                    const bucket = buckets.get(bucketTime);
+                    bucket.h = Math.max(bucket.h, tick.h);
+                    bucket.l = Math.min(bucket.l, tick.l);
+                    bucket.c = tick.c; // Last close
+                    bucket.v += tick.v;
+                    bucket.count++;
+                }
+            }
+            
+            // Convert to sorted array
+            return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
+        }
+        
+        function processRawData(rawData) {
+            if (!rawData || rawData.length === 0) {
+                showError('No valid data to process');
+                return;
+            }
+            
+            // Aggregate to current timeframe
+            const intervalMs = INTERVALS[state.currentTimeframe];
+            const aggregated = aggregateTicks(rawData, intervalMs);
+            
+            // Convert to Float64Array for performance
+            const candleData = new Float64Array(aggregated.length * 6);
+            
+            for (let i = 0; i < aggregated.length; i++) {
+                const candle = aggregated[i];
+                const offset = i * 6;
+                candleData[offset] = candle.t;
+                candleData[offset + 1] = candle.o;
+                candleData[offset + 2] = candle.h;
+                candleData[offset + 3] = candle.l;
+                candleData[offset + 4] = candle.c;
+                candleData[offset + 5] = candle.v;
+            }
+            
+            state.candles = candleData;
+            state.candleCount = aggregated.length;
+            
+            // Calculate price range
+            updatePriceRange();
+            
+            // Set initial view
+            state.visibleEnd = Math.min(100, state.candleCount);
+            state.visibleStart = Math.max(0, state.visibleEnd - 100);
+            
+            // Render
+            requestAnimationFrame(render);
+        }
+        
+        function aggregateAndRender() {
+            // Re-aggregate existing data to new timeframe
+            if (state.candleCount === 0) return;
+            
+            const rawData = [];
+            for (let i = 0; i < state.candleCount; i++) {
+                const offset = i * 6;
+                rawData.push({
+                    t: state.candles[offset],
+                    o: state.candles[offset + 1],
+                    h: state.candles[offset + 2],
+                    l: state.candles[offset + 3],
+                    c: state.candles[offset + 4],
+                    v: state.candles[offset + 5]
+                });
+            }
+            
+            processRawData(rawData);
+        }
+        
+        function updatePriceRange() {
+            if (state.candleCount === 0) return;
+            
+            let min = Infinity;
+            let max = -Infinity;
+            
+            for (let i = 0; i < state.candleCount; i++) {
+                const offset = i * 6;
+                const high = state.candles[offset + 2];
+                const low = state.candles[offset + 3];
+                
+                if (high > max) max = high;
+                if (low < min) min = low;
+            }
+            
+            state.priceMin = min;
+            state.priceMax = max;
+        }
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // FAST CANDLESTICK RENDERER
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        function render() {
+            if (!ctx || state.candleCount === 0) return;
+            
+            const { width, height } = canvas;
+            const padding = { top: 20, right: 70, bottom: 28, left: 20 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+            
+            if (chartWidth <= 0 || chartHeight <= 0) return;
+            
+            // Clear canvas
+            ctx.fillStyle = COLORS.background;
+            ctx.fillRect(0, 0, width, height);
+            
+            // Calculate visible range
+            const visibleCount = state.visibleEnd - state.visibleStart;
+            if (visibleCount <= 0) return;
+            
+            // Calculate price range for visible candles
+            let visibleMin = Infinity;
+            let visibleMax = -Infinity;
+            
+            for (let i = state.visibleStart; i < state.visibleEnd; i++) {
+                if (i >= state.candleCount) break;
+                const offset = i * 6;
+                const high = state.candles[offset + 2];
+                const low = state.candles[offset + 3];
+                
+                if (high > visibleMax) visibleMax = high;
+                if (low < visibleMin) visibleMin = low;
+            }
+            
+            const priceRange = visibleMax - visibleMin;
+            const pricePadding = priceRange * 0.1;
+            const adjustedMin = visibleMin - pricePadding;
+            const adjustedMax = visibleMax + pricePadding;
+            const adjustedRange = adjustedMax - adjustedMin;
+            
+            if (adjustedRange <= 0) return;
+            
+            // Helper functions
+            const priceToY = (price) => {
+                return padding.top + ((adjustedMax - price) / adjustedRange) * chartHeight;
+            };
+            
+            const indexToX = (index) => {
+                const relativeIndex = index - state.visibleStart;
+                return padding.left + (relativeIndex / visibleCount) * chartWidth;
+            };
+            
+            // Calculate candle width
+            const candleWidth = Math.max(1, Math.floor(chartWidth / visibleCount) - 1);
+            const halfWidth = candleWidth / 2;
+            
+            // Draw grid
+            drawGrid(ctx, padding, chartWidth, chartHeight, adjustedMin, adjustedMax, priceToY);
+            
+            // Draw candles (batched for performance)
+            drawCandles(ctx, padding, chartWidth, chartHeight, candleWidth, halfWidth, 
+                       priceToY, indexToX, adjustedMin, adjustedMax);
+            
+            // Draw price line
+            if (state.candleCount > 0) {
+                const lastOffset = (state.candleCount - 1) * 6;
+                const lastClose = state.candles[lastOffset + 4];
+                drawPriceLine(ctx, lastClose, priceToY, padding, chartWidth);
+            }
+            
+            // Draw axes
+            drawPriceAxis(ctx, padding, chartHeight, adjustedMin, adjustedMax);
+            drawTimeAxis(ctx, padding, chartWidth, height);
+            
+            // Draw crosshair and tooltip
+            if (state.hoveredCandle !== null) {
+                drawCrosshair(ctx, padding, chartWidth, chartHeight);
+                updateTooltip();
+            }
+            
+            // Update OHLC bar
+            updateOHLCBar();
+        }
+        
+        function drawGrid(ctx, padding, chartWidth, chartHeight, minPrice, maxPrice, priceToY) {
+            ctx.strokeStyle = COLORS.grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            
+            // Horizontal grid lines (price levels)
+            const priceSteps = 6;
+            for (let i = 0; i <= priceSteps; i++) {
+                const price = minPrice + ((maxPrice - minPrice) * i / priceSteps);
+                const y = Math.round(priceToY(price));
+                
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(padding.left + chartWidth, y);
+            }
+            
+            // Vertical grid lines (time)
+            const timeSteps = Math.min(10, state.visibleEnd - state.visibleStart);
+            for (let i = 0; i <= timeSteps; i++) {
+                const x = Math.round(padding.left + (chartWidth * i / timeSteps));
+                ctx.moveTo(x, padding.top);
+                ctx.lineTo(x, padding.top + chartHeight);
+            }
+            
+            ctx.stroke();
+        }
+        
+        function drawCandles(ctx, padding, chartWidth, chartHeight, candleWidth, halfWidth, 
+                           priceToY, indexToX, minPrice, maxPrice) {
+            
+            // Separate bull and bear candles for batching
+            const bullWicks = [];
+            const bearWicks = [];
+            const bullBodies = [];
+            const bearBodies = [];
+            
+            // Pre-calculate all candle positions
+            for (let i = state.visibleStart; i < state.visibleEnd; i++) {
+                if (i >= state.candleCount) break;
+                
+                const offset = i * 6;
+                const timestamp = state.candles[offset];
+                const open = state.candles[offset + 1];
+                const high = state.candles[offset + 2];
+                const low = state.candles[offset + 3];
+                const close = state.candles[offset + 4];
+                
+                const x = Math.round(indexToX(i));
+                const openY = Math.round(priceToY(open));
+                const highY = Math.round(priceToY(high));
+                const lowY = Math.round(priceToY(low));
+                const closeY = Math.round(priceToY(close));
+                
+                const isBull = close > open;
+                const bodyTop = Math.min(openY, closeY);
+                const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+                
+                // Store wick data
+                const wickData = { x, highY, lowY };
+                if (isBull) {
+                    bullWicks.push(wickData);
+                    bullBodies.push({ x, bodyTop, bodyHeight, halfWidth });
+                } else {
+                    bearWicks.push(wickData);
+                    bearBodies.push({ x, bodyTop, bodyHeight, halfWidth });
+                }
+            }
+            
+            // Draw all bull wicks in one batch
+            if (bullWicks.length > 0) {
+                ctx.strokeStyle = COLORS.bullWick;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                bullWicks.forEach(wick => {
+                    ctx.moveTo(wick.x, wick.highY);
+                    ctx.lineTo(wick.x, wick.lowY);
+                });
+                ctx.stroke();
+            }
+            
+            // Draw all bear wicks in one batch
+            if (bearWicks.length > 0) {
+                ctx.strokeStyle = COLORS.bearWick;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                bearWicks.forEach(wick => {
+                    ctx.moveTo(wick.x, wick.highY);
+                    ctx.lineTo(wick.x, wick.lowY);
+                });
+                ctx.stroke();
+            }
+            
+            // Draw all bull bodies in one batch
+            if (bullBodies.length > 0) {
+                ctx.fillStyle = COLORS.bullBody;
+                bullBodies.forEach(body => {
+                    ctx.fillRect(body.x - body.halfWidth, body.bodyTop, candleWidth, body.bodyHeight);
+                });
+            }
+            
+            // Draw all bear bodies in one batch
+            if (bearBodies.length > 0) {
+                ctx.fillStyle = COLORS.bearBody;
+                bearBodies.forEach(body => {
+                    ctx.fillRect(body.x - body.halfWidth, body.bodyTop, candleWidth, body.bodyHeight);
+                });
+            }
+        }
+        
+        function drawPriceLine(ctx, price, priceToY, padding, chartWidth) {
+            const y = Math.round(priceToY(price));
+            
+            ctx.strokeStyle = COLORS.priceLine;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(padding.left + chartWidth, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        function drawPriceAxis(ctx, padding, chartHeight, minPrice, maxPrice) {
+            ctx.fillStyle = COLORS.axisText;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            
+            const priceSteps = 6;
+            for (let i = 0; i <= priceSteps; i++) {
+                const price = minPrice + ((maxPrice - minPrice) * i / priceSteps);
+                const y = padding.top + ((1 - i / priceSteps) * chartHeight);
+                const priceText = price.toFixed(2);
+                
+                ctx.fillText(priceText, canvas.width - padding.right + 5, y);
+            }
+        }
+        
+        function drawTimeAxis(ctx, padding, chartWidth, canvasHeight) {
+            if (state.candleCount === 0) return;
+            
+            ctx.fillStyle = COLORS.axisText;
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            const timeSteps = Math.min(8, state.visibleEnd - state.visibleStart);
+            for (let i = 0; i <= timeSteps; i++) {
+                const candleIndex = state.visibleStart + Math.floor((state.visibleEnd - state.visibleStart) * i / timeSteps);
+                if (candleIndex >= state.candleCount) continue;
+                
+                const x = padding.left + (chartWidth * i / timeSteps);
+                const offset = candleIndex * 6;
+                const timestamp = state.candles[offset];
+                const date = new Date(timestamp);
+                const timeText = date.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: false 
+                });
+                
+                ctx.fillText(timeText, x, canvasHeight - padding.bottom + 5);
+            }
+        }
+        
+        function drawCrosshair(ctx, padding, chartWidth, chartHeight) {
+            ctx.strokeStyle = COLORS.crosshair;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            
+            // Horizontal line
+            ctx.beginPath();
+            ctx.moveTo(padding.left, state.mouseY);
+            ctx.lineTo(padding.left + chartWidth, state.mouseY);
+            ctx.stroke();
+            
+            // Vertical line
+            ctx.beginPath();
+            ctx.moveTo(state.mouseX, padding.top);
+            ctx.lineTo(state.mouseX, padding.top + chartHeight);
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+        }
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // CHART INTERACTIONS
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        function handleMouseMove(event) {
+            const rect = canvas.getBoundingClientRect();
+            state.mouseX = event.clientX - rect.left;
+            state.mouseY = event.clientY - rect.top;
+            
+            const padding = { top: 20, right: 70, bottom: 28, left: 20 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            
+            // Check if mouse is over chart area
+            if (state.mouseX >= padding.left && state.mouseX <= padding.left + chartWidth &&
+                state.mouseY >= padding.top && state.mouseY <= canvas.height - padding.bottom) {
+                
+                // Find hovered candle
+                const visibleCount = state.visibleEnd - state.visibleStart;
+                const relativeX = state.mouseX - padding.left;
+                const candleIndex = state.visibleStart + Math.floor((relativeX / chartWidth) * visibleCount);
+                
+                if (candleIndex >= state.visibleStart && candleIndex < state.visibleEnd && 
+                    candleIndex < state.candleCount) {
+                    state.hoveredCandle = candleIndex;
+                } else {
+                    state.hoveredCandle = null;
+                }
+            } else {
+                state.hoveredCandle = null;
+            }
+            
+            // Handle dragging
+            if (state.isDragging) {
+                const deltaX = event.clientX - state.dragStartX;
+                const visibleCount = state.visibleEnd - state.visibleStart;
+                const candleDelta = Math.round((deltaX / chartWidth) * visibleCount);
+                
+                const newStart = Math.max(0, state.dragStartIdx - candleDelta);
+                const newEnd = Math.min(state.candleCount, newStart + visibleCount);
+                
+                state.visibleStart = newStart;
+                state.visibleEnd = newEnd;
+            }
+            
+            requestAnimationFrame(render);
+        }
+        
+        function handleMouseDown(event) {
+            state.isDragging = true;
+            state.dragStartX = event.clientX;
+            state.dragStartIdx = state.visibleStart;
+            canvas.style.cursor = 'grabbing';
+        }
+        
+        function handleMouseUp(event) {
+            state.isDragging = false;
+            canvas.style.cursor = 'crosshair';
+        }
+        
+        function handleMouseLeave(event) {
+            state.hoveredCandle = null;
+            state.isDragging = false;
+            canvas.style.cursor = 'crosshair';
+            tooltip.style.display = 'none';
+            requestAnimationFrame(render);
+        }
+        
+        function handleWheel(event) {
+            event.preventDefault();
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const padding = { top: 20, right: 70, bottom: 28, left: 20 };
+            const chartWidth = canvas.width - padding.left - padding.right;
+            
+            if (mouseX < padding.left || mouseX > padding.left + chartWidth) return;
+            
+            const visibleCount = state.visibleEnd - state.visibleStart;
+            const zoomFactor = event.deltaY > 0 ? 1.1 : 0.9;
+            const newVisibleCount = Math.max(10, Math.min(state.candleCount, visibleCount * zoomFactor));
+            
+            // Zoom around mouse position
+            const relativeMouseX = (mouseX - padding.left) / chartWidth;
+            const centerIndex = state.visibleStart + visibleCount * relativeMouseX;
+            
+            const newStart = Math.max(0, Math.round(centerIndex - newVisibleCount * relativeMouseX));
+            const newEnd = Math.min(state.candleCount, newStart + newVisibleCount);
+            
+            state.visibleStart = newStart;
+            state.visibleEnd = newEnd;
+            
+            requestAnimationFrame(render);
+        }
+        
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // UI UPDATES
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        function updateTooltip() {
+            if (state.hoveredCandle === null) {
+                tooltip.style.display = 'none';
+                return;
+            }
+            
+            const offset = state.hoveredCandle * 6;
+            const timestamp = state.candles[offset];
+            const open = state.candles[offset + 1];
+            const high = state.candles[offset + 2];
+            const low = state.candles[offset + 3];
+            const close = state.candles[offset + 4];
+            const volume = state.candles[offset + 5];
+            
+            const change = close - open;
+            const changePercent = (change / open * 100).toFixed(2);
+            const changeColor = change >= 0 ? COLORS.bullBody : COLORS.bearBody;
+            
+            const date = new Date(timestamp);
+            
+            tooltip.innerHTML = `
+                <div>${date.toLocaleString()}</div>
+                <div>Open: ${open.toFixed(2)}</div>
+                <div>High: ${high.toFixed(2)}</div>
+                <div>Low: ${low.toFixed(2)}</div>
+                <div>Close: ${close.toFixed(2)}</div>
+                <div>Volume: ${volume.toFixed(1)}</div>
+                <div style="color: ${changeColor}">
+                    Change: ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)
+                </div>
+            `;
+            
+            // Position tooltip
+            const rect = canvas.getBoundingClientRect();
+            let tooltipX = state.mouseX + 10;
+            let tooltipY = state.mouseY + 10;
+            
+            // Keep tooltip in bounds
+            if (tooltipX + 200 > rect.width) tooltipX = state.mouseX - 210;
+            if (tooltipY + 150 > rect.height) tooltipY = state.mouseY - 160;
+            
+            tooltip.style.left = tooltipX + 'px';
+            tooltip.style.top = tooltipY + 'px';
+            tooltip.style.display = 'block';
+        }
+        
+        function updateOHLCBar() {
+            let candleIndex = state.hoveredCandle;
+            if (candleIndex === null && state.candleCount > 0) {
+                candleIndex = state.candleCount - 1; // Use last candle
+            }
+            
+            if (candleIndex === null || candleIndex >= state.candleCount) {
+                document.getElementById('openVal').textContent = '-';
+                document.getElementById('highVal').textContent = '-';
+                document.getElementById('lowVal').textContent = '-';
+                document.getElementById('closeVal').textContent = '-';
+                document.getElementById('volumeVal').textContent = '-';
+                document.getElementById('changeVal').textContent = '-';
+                return;
+            }
+            
+            const offset = candleIndex * 6;
+            const open = state.candles[offset + 1];
+            const high = state.candles[offset + 2];
+            const low = state.candles[offset + 3];
+            const close = state.candles[offset + 4];
+            const volume = state.candles[offset + 5];
+            
+            const change = close - open;
+            const changePercent = (change / open * 100).toFixed(2);
+            const changeColor = change >= 0 ? COLORS.bullBody : COLORS.bearBody;
+            
+            document.getElementById('openVal').textContent = open.toFixed(2);
+            document.getElementById('highVal').textContent = high.toFixed(2);
+            document.getElementById('lowVal').textContent = low.toFixed(2);
+            document.getElementById('closeVal').textContent = close.toFixed(2);
+            document.getElementById('volumeVal').textContent = volume.toFixed(1);
+            
+            const changeEl = document.getElementById('changeVal');
+            changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)`;
+            changeEl.style.color = changeColor;
+        }
+        
+        function setLoading(loading) {
+            state.isLoading = loading;
+            const btn = document.getElementById('downloadBtn');
+            
+            if (loading) {
+                btn.innerHTML = '<span class="spinner"></span> Loading...';
+                btn.disabled = true;
+            } else {
+                btn.innerHTML = '📥 Download';
+                btn.disabled = false;
+            }
+        }
+        
+        function showStatus(message) {
+            document.getElementById('status').textContent = message;
+            document.getElementById('status').className = 'status';
+        }
+        
+        function showError(message) {
+            document.getElementById('status').textContent = message;
+            document.getElementById('status').className = 'status error';
+        }
+        
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // SELF-TEST ON LOAD
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        
+        function runSelfTest() {
+            console.log('🧪 Running self-test...');
+            const startTime = performance.now();
+            
+            // Generate test data
+            const testData = generateSimulatedData(500);
+            
+            // Validate all candles
+            let validCandles = 0;
+            for (const candle of testData) {
+                if (validateCandle(candle)) {
+                    validCandles++;
+                }
+            }
+            
+            // Process and render
+            processRawData(testData);
+            
+            const renderTime = performance.now() - startTime;
+            
+            console.log(`✅ Self-test passed: ${validCandles}/${testData.length} valid candles`);
+            console.log(`⚡ Render time: ${renderTime.toFixed(2)}ms`);
+            
+            showStatus(`Chart ready — ${validCandles} candles rendered in ${renderTime.toFixed(1)}ms`);
+        }
+    </script>
+</body>
+</html>

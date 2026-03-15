@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradingView - EURUSD</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Arial, sans-serif;
+    background: #131722;
+    color: #d1d4dc;
+    overflow: hidden;
+}
+
+/* LEFT TOOLBAR */
+#left-toolbar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 42px;
+    height: 100vh;
+    background: #1e222d;
+    border-right: 1px solid #2a2e39;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    z-index: 100;
+}
+.tool-btn {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #787b86;
+    transition: all 0.2s;
+    border: none;
+    background: transparent;
+}
+.tool-btn:hover { background: #2a2e39; color: #d1d4dc; }
+.tool-btn.active { color: #2962ff; }
+.tool-separator { height: 1px; background: #2a2e39; margin: 8px 6px; }
+
+/* TOP BAR */
+#top-bar {
+    position: fixed;
+    top: 0;
+    left: 42px;
+    right: 0;
+    height: 48px;
+    background: #1e222d;
+    border-bottom: 1px solid #2a2e39;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 12px;
+    z-index: 99;
+}
+.symbol-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.symbol-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f8f9fa;
+    letter-spacing: 0.3px;
+}
+.symbol-desc {
+    font-size: 12px;
+    color: #787b86;
+}
+.tf-group {
+    display: flex;
+    gap: 2px;
+    margin-left: 16px;
+}
+.tf-btn {
+    background: transparent;
+    border: none;
+    color: #787b86;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    font-weight: 500;
+}
+.tf-btn:hover { background: #2a2e39; color: #d1d4dc; }
+.tf-btn.active { background: #2962ff; color: #fff; }
+.spacer { flex: 1; }
+.top-btn {
+    background: transparent;
+    border: 1px solid #434651;
+    color: #d1d4dc;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+.top-btn:hover { background: #2a2e39; }
+
+/* CHART AREA */
+#chart-area {
+    position: fixed;
+    top: 48px;
+    left: 42px;
+    right: 0;
+    bottom: 24px;
+    background: #131722;
+}
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    cursor: crosshair;
+}
+
+/* BOTTOM BAR */
+#bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 42px;
+    right: 0;
+    height: 24px;
+    background: #1e222d;
+    border-top: 1px solid #2a2e39;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    color: #787b86;
+    gap: 16px;
+}
+#bottom-bar b { color: #d1d4dc; font-weight: 500; }
+
+/* TOOLTIP */
+#tooltip {
+    position: absolute;
+    background: rgba(19, 23, 34, 0.98);
+    border: 1px solid #2a2e39;
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    display: none;
+    z-index: 200;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    min-width: 160px;
+}
+.tt-time { color: #787b86; margin-bottom: 8px; font-size: 11px; font-weight: 500; }
+.tt-row { 
+    display: flex; 
+    justify-content: space-between; 
+    gap: 24px;
+    margin: 4px 0;
+    font-size: 12px;
+}
+.tt-label { color: #787b86; }
+.tt-value { color: #d1d4dc; font-weight: 500; font-family: 'Courier New', monospace; }
+
+/* LOADING */
+#loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(19, 23, 34, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    z-index: 1000;
+}
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #2a2e39;
+    border-top-color: #2962ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-text { color: #787b86; font-size: 14px; }
+.progress-bar {
+    width: 320px;
+    height: 3px;
+    background: #2a2e39;
+    border-radius: 2px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2962ff, #4a90e2);
+    width: 0%;
+    transition: width 0.3s;
+}
+
+/* PRICE LEGEND */
+#price-legend {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(19, 23, 34, 0.85);
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 11px;
+    display: flex;
+    gap: 16px;
+    backdrop-filter: blur(10px);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-label { color: #787b86; }
+.legend-value { 
+    color: #d1d4dc; 
+    font-weight: 600; 
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+}
+.legend-change { font-weight: 600; }
+.legend-change.up { color: #26a69a; }
+.legend-change.down { color: #ef5350; }
+</style>
+</head>
+<body>
+
+<!-- LEFT TOOLBAR -->
+<div id="left-toolbar">
+    <button class="tool-btn active" title="Crosshair">✕</button>
+    <button class="tool-btn" title="Trend Line">╱</button>
+    <button class="tool-btn" title="Horizontal Line">─</button>
+    <div class="tool-separator"></div>
+    <button class="tool-btn" title="Rectangle">▭</button>
+    <button class="tool-btn" title="Circle">○</button>
+    <button class="tool-btn" title="Text">T</button>
+    <div class="tool-separator"></div>
+    <button class="tool-btn" title="Indicators">ƒ</button>
+    <button class="tool-btn" title="Alerts">🔔</button>
+</div>
+
+<!-- TOP BAR -->
+<div id="top-bar">
+    <div class="symbol-info">
+        <span class="symbol-name">EURUSD</span>
+        <span class="symbol-desc">Euro / US Dollar</span>
+    </div>
+    <div class="tf-group">
+        <button class="tf-btn" onclick="setTF('1')">1</button>
+        <button class="tf-btn" onclick="setTF('5')">5</button>
+        <button class="tf-btn" onclick="setTF('15')">15</button>
+        <button class="tf-btn" onclick="setTF('30')">30</button>
+        <button class="tf-btn active" onclick="setTF('60')">1H</button>
+        <button class="tf-btn" onclick="setTF('240')">4H</button>
+        <button class="tf-btn" onclick="setTF('D')">D</button>
+        <button class="tf-btn" onclick="setTF('W')">W</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="top-btn">Indicators</button>
+    <button class="top-btn">⚙</button>
+    <button class="top-btn">📷</button>
+</div>
+
+<!-- CHART AREA -->
+<div id="chart-area">
+    <canvas id="canvas"></canvas>
+    <div id="price-legend">
+        <div class="legend-item"><span class="legend-label">O</span><span class="legend-value" id="lO">—</span></div>
+        <div class="legend-item"><span class="legend-label">H</span><span class="legend-value" id="lH">—</span></div>
+        <div class="legend-item"><span class="legend-label">L</span><span class="legend-value" id="lL">—</span></div>
+        <div class="legend-item"><span class="legend-label">C</span><span class="legend-value" id="lC">—</span></div>
+        <div class="legend-item"><span class="legend-change" id="lChg">—</span></div>
+    </div>
+    <div id="tooltip"></div>
+    <div id="loading">
+        <div class="spinner"></div>
+        <div class="load-text">Loading market data...</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottom-bar">
+    <span><b id="bCount">0</b> bars</span>
+    <span>Range: <b id="bRange">—</b></span>
+    <span id="bInfo">2021-2026 Real Tick Data</span>
+</div>
+
+<script>
+const PAD = { top: 50, right: 70, bottom: 30, left: 10 };
+const COL = {
+    bg: '#131722', grid: '#2a2e39', text: '#787b86', textBright: '#d1d4dc',
+    bull: '#26a69a', bear: '#ef5350', cross: '#787b86',
+    priceBull: '#26a69a', priceBear: '#ef5350'
+};
+
+let data = [], vStart = 0, vCount = 120, drag = false, dragX = 0, dragS = 0;
+let mx = -1, my = -1, dpr = 1, W = 0, H = 0;
+let currentTF = '1h';
+
+const area = document.getElementById('chart-area');
+const cv = document.getElementById('canvas');
+const ctx = cv.getContext('2d');
+const tip = document.getElementById('tooltip');
+const load = document.getElementById('loading');
+const prog = document.getElementById('progress');
+
+const cW = () => W - PAD.left - PAD.right;
+const cH = () => H - PAD.top - PAD.bottom;
+const px = v => Math.round(v);
+
+function getVis() {
+    const s = Math.max(0, Math.min(vStart, data.length - 1));
+    return data.slice(s, Math.min(s + vCount, data.length));
+}
+
+function getRange(arr) {
+    let hi = -Infinity, lo = Infinity;
+    arr.forEach(c => {
+        if (c.h > hi) hi = c.h;
+        if (c.l < lo) lo = c.l;
+    });
+    const r = hi - lo || hi * 0.01 || 1;
+    return { hi: hi + r * 0.06, lo: lo - r * 0.04 };
+}
+
+function toY(p, lo, hi) {
+    const r = hi - lo;
+    if (!r) return PAD.top + cH() / 2;
+    return PAD.top + cH() * (1 - (p - lo) / r);
+}
+
+function fmt(v) {
+    return v >= 10 ? v.toFixed(2) : v.toFixed(5);
+}
+
+function fmtTime(ts) {
+    const d = new Date(ts);
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function fmtDate(ts) {
+    const d = new Date(ts);
+    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    return `${mon} ${d.getDate()}, ${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const vis = getVis();
+    if (!vis.length) return;
+    
+    const { hi, lo } = getRange(vis);
+    const slot = cW() / vis.length;
+    const bw = Math.max(1, px(slot * 0.75));
+    const hw = Math.max(1, Math.floor(bw / 2));
+    
+    // GRID
+    ctx.strokeStyle = COL.grid;
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) {
+        const y = px(toY(lo + (hi - lo) * i / 8, lo, hi));
+        ctx.beginPath();
+        ctx.moveTo(PAD.left, y);
+        ctx.lineTo(W - PAD.right, y);
+        ctx.stroke();
+    }
+    
+    // PRICE AXIS
+    ctx.fillStyle = COL.text;
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, Arial';
+    ctx.textAlign = 'left';
+    for (let i = 0; i <= 8; i++) {
+        const p = lo + (hi - lo) * i / 8;
+        const y = px(toY(p, lo, hi));
+        ctx.fillText(fmt(p), W - PAD.right + 6, y + 4);
+    }
+    
+    // TIME AXIS
+    ctx.fillStyle = COL.text;
+    ctx.textAlign = 'center';
+    const step = Math.ceil(vis.length / 10);
+    vis.forEach((c, i) => {
+        if (i % step === 0) {
+            const x = px(PAD.left + i * slot + slot / 2);
+            ctx.fillText(fmtTime(c.t), x, H - PAD.bottom + 16);
+        }
+    });
+    
+    // CANDLES
+    const bulls = [], bears = [];
+    vis.forEach((c, i) => {
+        const bull = c.c >= c.o;
+        const cx = px(PAD.left + i * slot + slot / 2);
+        const bt = px(toY(Math.max(c.o, c.c), lo, hi));
+        const bb = px(toY(Math.min(c.o, c.c), lo, hi));
+        const bh = Math.max(1, bb - bt);
+        const wt = px(toY(c.h, lo, hi));
+        const wb = px(toY(c.l, lo, hi));
+        (bull ? bulls : bears).push({ cx, bt, bb, bh, wt, wb });
+    });
+    
+    // WICKS
+    ctx.strokeStyle = COL.bull;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    bulls.forEach(({ cx, bt, bb, wt, wb }) => {
+        if (wt < bt) { ctx.moveTo(cx, wt); ctx.lineTo(cx, bt); }
+        if (wb > bb) { ctx.moveTo(cx, bb); ctx.lineTo(cx, wb); }
+    });
+    ctx.stroke();
+    
+    ctx.strokeStyle = COL.bear;
+    ctx.beginPath();
+    bears.forEach(({ cx, bt, bb, wt, wb }) => {
+        if (wt < bt) { ctx.moveTo(cx, wt); ctx.lineTo(cx, bt); }
+        if (wb > bb) { ctx.moveTo(cx, bb); ctx.lineTo(cx, wb); }
+    });
+    ctx.stroke();
+    
+    // BODIES
+    ctx.fillStyle = COL.bull;
+    bulls.forEach(({ cx, bt, bh }) => ctx.fillRect(cx - hw, bt, bw, bh));
+    
+    ctx.fillStyle = COL.bear;
+    bears.forEach(({ cx, bt, bh }) => ctx.fillRect(cx - hw, bt, bw, bh));
+    
+    // LAST PRICE
+    const last = vis[vis.length - 1];
+    const ly = px(toY(last.c, lo, hi));
+    const bull = last.c >= last.o;
+    
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = bull ? COL.priceBull : COL.priceBear;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, ly);
+    ctx.lineTo(W - PAD.right, ly);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    ctx.fillStyle = bull ? COL.priceBull : COL.priceBear;
+    ctx.fillRect(W - PAD.right + 2, ly - 11, PAD.right - 4, 22);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px -apple-system';
+    ctx.textAlign = 'center';
+    ctx.fillText(fmt(last.c), W - PAD.right / 2, ly + 4);
+    
+    // CROSSHAIR
+    if (mx > PAD.left && mx < W - PAD.right && my > PAD.top && my < H - PAD.bottom) {
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = COL.cross;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mx, PAD.top);
+        ctx.lineTo(mx, H - PAD.bottom);
+        ctx.moveTo(PAD.left, my);
+        ctx.lineTo(W - PAD.right, my);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        const hp = lo + (hi - lo) * (1 - (my - PAD.top) / cH());
+        ctx.fillStyle = COL.text;
+        ctx.font = '11px -apple-system';
+        ctx.textAlign = 'left';
+        ctx.fillText(fmt(hp), W - PAD.right + 6, my + 4);
+    }
+    
+    // UPDATE LEGEND
+    const idx = Math.floor((mx - PAD.left) / slot);
+    const hov = (idx >= 0 && idx < vis.length) ? vis[idx] : last;
+    const chg = ((hov.c - hov.o) / hov.o * 100).toFixed(2);
+    
+    document.getElementById('lO').textContent = fmt(hov.o);
+    document.getElementById('lH').textContent = fmt(hov.h);
+    document.getElementById('lL').textContent = fmt(hov.l);
+    document.getElementById('lC').textContent = fmt(hov.c);
+    
+    const chgEl = document.getElementById('lChg');
+    chgEl.textContent = (hov.c >= hov.o ? '+' : '') + chg + '%';
+    chgEl.className = 'legend-change ' + (hov.c >= hov.o ? 'up' : 'down');
+    
+    document.getElementById('bCount').textContent = data.length.toLocaleString();
+    if (data.length > 0) {
+        const f = new Date(data[0].t);
+        const l = new Date(data[data.length - 1].t);
+        document.getElementById('bRange').textContent = 
+            `${f.toLocaleDateString()} - ${l.toLocaleDateString()}`;
+    }
+}
+
+function updateTip(e) {
+    const rc = area.getBoundingClientRect();
+    const ex = e.clientX - rc.left, ey = e.clientY - rc.top;
+    const vis = getVis();
+    if (!vis.length) return;
+    
+    const slot = cW() / vis.length;
+    const idx = Math.floor((ex - PAD.left) / slot);
+    
+    if (idx >= 0 && idx < vis.length) {
+        const c = vis[idx];
+        const chg = ((c.c - c.o) / c.o * 100).toFixed(2);
+        const cls = c.c >= c.o ? 'up' : 'down';
+        
+        tip.innerHTML = `
+            <div class="tt-time">${fmtDate(c.t)}</div>
+            <div class="tt-row"><span class="tt-label">Open</span><span class="tt-value">${fmt(c.o)}</span></div>
+            <div class="tt-row"><span class="tt-label">High</span><span class="tt-value">${fmt(c.h)}</span></div>
+            <div class="tt-row"><span class="tt-label">Low</span><span class="tt-value">${fmt(c.l)}</span></div>
+            <div class="tt-row"><span class="tt-label">Close</span><span class="tt-value">${fmt(c.c)}</span></div>
+            <div class="tt-row"><span class="tt-label">Change</span><span class="tt-value legend-change ${cls}">${c.c >= c.o ? '+' : ''}${chg}%</span></div>
+        `;
+        
+        tip.style.display = 'block';
+        const tw = tip.offsetWidth, th = tip.offsetHeight;
+        const tx = ex + 16 + tw > W ? ex - tw - 16 : ex + 16;
+        const ty = Math.max(PAD.top, Math.min(ey - th / 2, H - PAD.bottom - th));
+        tip.style.left = tx + 'px';
+        tip.style.top = ty + 'px';
+    } else {
+        tip.style.display = 'none';
+    }
+}
+
+area.addEventListener('mousemove', e => {
+    const rc = area.getBoundingClientRect();
+    mx = e.clientX - rc.left;
+    my = e.clientY - rc.top;
+    if (drag) {
+        const dx = mx - dragX;
+        const delta = Math.round(-dx / (cW() / vCount));
+        vStart = Math.max(0, Math.min(dragS + delta, data.length - vCount));
+    }
+    updateTip(e);
+    draw();
+});
+
+area.addEventListener('mouseleave', () => {
+    mx = -1; my = -1;
+    tip.style.display = 'none';
+    drag = false;
+    draw();
+});
+
+area.addEventListener('mousedown', e => {
+    drag = true;
+    dragX = e.clientX - area.getBoundingClientRect().left;
+    dragS = vStart;
+});
+
+area.addEventListener('mouseup', () => { drag = false; });
+
+area.addEventListener('wheel', e => {
+    e.preventDefault();
+    vCount = Math.max(30, Math.min(data.length, vCount + (e.deltaY > 0 ? 10 : -10)));
+    vStart = Math.max(0, Math.min(vStart, data.length - vCount));
+    draw();
+}, { passive: false });
+
+window.setTF = async function(tf) {
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Map button values to timeframe names
+    const tfMap = {
+        '1': '1min',
+        '5': '5min',
+        '15': '15min',
+        '30': '30min',
+        '60': '1h',
+        '240': '4h',
+        'D': '1d',
+        'W': '1w'
+    };
+    
+    const tfName = tfMap[tf] || '1h';
+    if (tfName === currentTF) return;
+    
+    currentTF = tfName;
+    load.style.display = 'flex';
+    load.querySelector('.load-text').textContent = `Loading ${tfName} candles...`;
+    prog.style.width = '0%';
+    
+    try {
+        const res = await fetch(`candles_${tfName}.json`);
+        if (!res.ok) throw new Error('Not found');
+        
+        const len = res.headers.get('content-length');
+        if (len) {
+            const total = parseInt(len);
+            const reader = res.body.getReader();
+            let received = 0;
+            const chunks = [];
+            
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                received += value.length;
+                prog.style.width = (received / total * 100) + '%';
+            }
+            
+            const blob = new Blob(chunks);
+            const text = await blob.text();
+            const json = JSON.parse(text);
+            data = json.candles || [];
+        } else {
+            const json = await res.json();
+            data = json.candles || [];
+        }
+        
+        // Adjust view based on timeframe
+        const defaultCounts = {
+            '1min': 500,
+            '5min': 300,
+            '15min': 200,
+            '30min': 150,
+            '1h': 120,
+            '4h': 90,
+            '1d': 60,
+            '1w': 52
+        };
+        
+        vCount = Math.min(defaultCounts[tfName] || 120, data.length);
+        vStart = Math.max(0, data.length - vCount);
+        
+        load.style.display = 'none';
+        resize();
+        console.log(`✓ ${data.length} ${tfName} candles loaded`);
+    } catch (e) {
+        load.querySelector('.load-text').textContent = `Error loading ${tfName} data`;
+        console.error(e);
+    }
+};
+
+function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = area.clientWidth;
+    H = area.clientHeight;
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    cv.style.width = W + 'px';
+    cv.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+    draw();
+}
+
+new ResizeObserver(resize).observe(area);
+
+async function loadData() {
+    // Load default timeframe (1h)
+    const sources = [`candles_${currentTF}.json`, 'tradingview_candles.json', 'backend/candles.json'];
+    
+    for (const src of sources) {
+        try {
+            const res = await fetch(src);
+            if (!res.ok) continue;
+            
+            const len = res.headers.get('content-length');
+            if (len) {
+                const total = parseInt(len);
+                const reader = res.body.getReader();
+                let received = 0;
+                const chunks = [];
+                
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    received += value.length;
+                    const pct = (received / total) * 100;
+                    prog.style.width = pct + '%';
+                }
+                
+                const blob = new Blob(chunks);
+                const text = await blob.text();
+                const json = JSON.parse(text);
+                data = json.candles || [];
+            } else {
+                const json = await res.json();
+                data = json.candles || [];
+            }
+            
+            vCount = Math.min(120, data.length);
+            vStart = Math.max(0, data.length - vCount);
+            load.style.display = 'none';
+            resize();
+            console.log(`✓ ${data.length} candles loaded from ${src}`);
+            return;
+        } catch (e) {
+            console.log(`Failed: ${src}`);
+        }
+    }
+    
+    load.querySelector('.load-text').textContent = 'Error: No data found';
+}
+
+loadData();
+</script>
+</body>
+</html>

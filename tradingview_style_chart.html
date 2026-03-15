@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradingView Style Chart - EURUSD 2021-2026</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+    font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Arial, sans-serif;
+    background: #131722;
+    color: #d1d4dc;
+    overflow: hidden;
+}
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+/* TOOLBAR */
+#toolbar {
+    background: #1e222d;
+    border-bottom: 1px solid #2a2e39;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+.symbol { 
+    font-size: 18px; 
+    font-weight: 600; 
+    color: #f8f9fa;
+    letter-spacing: 0.5px;
+}
+.tf-group {
+    display: flex;
+    gap: 4px;
+    margin-left: 16px;
+}
+.tf-btn {
+    background: transparent;
+    border: none;
+    color: #787b86;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+.tf-btn:hover { background: #2a2e39; color: #d1d4dc; }
+.tf-btn.active { background: #2962ff; color: #fff; }
+.spacer { flex: 1; }
+.price-info {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: #787b86;
+}
+.price-info span { display: flex; align-items: center; gap: 6px; }
+.price-info b { color: #d1d4dc; font-weight: 500; }
+.price-change { font-weight: 600; }
+.price-change.up { color: #26a69a; }
+.price-change.down { color: #ef5350; }
+
+/* CHART */
+#chart-container {
+    flex: 1;
+    position: relative;
+    background: #131722;
+    overflow: hidden;
+}
+canvas { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    cursor: crosshair;
+}
+
+/* TOOLTIP */
+#tooltip {
+    position: absolute;
+    background: rgba(19, 23, 34, 0.95);
+    border: 1px solid #2a2e39;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    display: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.tooltip-time { color: #787b86; margin-bottom: 6px; font-size: 11px; }
+.tooltip-row { 
+    display: flex; 
+    justify-content: space-between; 
+    gap: 20px;
+    margin: 3px 0;
+}
+.tooltip-label { color: #787b86; }
+.tooltip-value { color: #d1d4dc; font-weight: 500; }
+
+/* STATUS BAR */
+#status {
+    background: #1e222d;
+    border-top: 1px solid #2a2e39;
+    padding: 6px 12px;
+    font-size: 11px;
+    color: #787b86;
+    display: flex;
+    gap: 16px;
+    flex-shrink: 0;
+}
+#status b { color: #d1d4dc; font-weight: 500; }
+
+/* LOADING */
+#loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(19, 23, 34, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 1000;
+}
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #2a2e39;
+    border-top-color: #2962ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-text { color: #787b86; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="app">
+    <!-- TOOLBAR -->
+    <div id="toolbar">
+        <span class="symbol">EURUSD</span>
+        <div class="tf-group">
+            <button class="tf-btn" onclick="setTF('1m')">1</button>
+            <button class="tf-btn" onclick="setTF('5m')">5</button>
+            <button class="tf-btn" onclick="setTF('15m')">15</button>
+            <button class="tf-btn active" onclick="setTF('1h')">1H</button>
+            <button class="tf-btn" onclick="setTF('4h')">4H</button>
+            <button class="tf-btn" onclick="setTF('1d')">1D</button>
+        </div>
+        <div class="spacer"></div>
+        <div class="price-info">
+            <span>O <b id="pO">—</b></span>
+            <span>H <b id="pH">—</b></span>
+            <span>L <b id="pL">—</b></span>
+            <span>C <b id="pC">—</b></span>
+            <span class="price-change" id="pChg">—</span>
+        </div>
+    </div>
+    
+    <!-- CHART -->
+    <div id="chart-container">
+        <canvas id="canvas"></canvas>
+        <div id="tooltip"></div>
+        <div id="loading">
+            <div class="spinner"></div>
+            <div class="load-text">Loading tick data 2021-2026...</div>
+        </div>
+    </div>
+    
+    <!-- STATUS -->
+    <div id="status">
+        <span><b id="sCount">0</b> candles</span>
+        <span>Range: <b id="sRange">—</b></span>
+        <span id="sInfo">Scroll to zoom · Drag to pan · Hover for details</span>
+    </div>
+</div>
+
+<script>
+// CONFIG
+const PADDING = { top: 20, right: 80, bottom: 30, left: 10 };
+const COLORS = {
+    bg: '#131722',
+    grid: '#2a2e39',
+    text: '#787b86',
+    textBright: '#d1d4dc',
+    bull: '#26a69a',
+    bear: '#ef5350',
+    crosshair: '#787b86',
+    priceLineBull: '#26a69a',
+    priceLineBear: '#ef5350'
+};
+
+// STATE
+let data = [];
+let currentTimeframe = '1h';
+let viewStart = 0;
+let viewCount = 100;
+let isDragging = false;
+let dragStartX = 0;
+let dragStartView = 0;
+let mouseX = -1;
+let mouseY = -1;
+let dpr = 1;
+let W = 0, H = 0;
+
+// ELEMENTS
+const container = document.getElementById('chart-container');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+const loading = document.getElementById('loading');
+
+// HELPERS
+const chartWidth = () => W - PADDING.left - PADDING.right;
+const chartHeight = () => H - PADDING.top - PADDING.bottom;
+const round = v => Math.round(v);
+
+function getVisibleData() {
+    const start = Math.max(0, Math.min(viewStart, data.length - 1));
+    return data.slice(start, Math.min(start + viewCount, data.length));
+}
+
+function getPriceRange(candles) {
+    let high = -Infinity, low = Infinity;
+    candles.forEach(c => {
+        if (c.h > high) high = c.h;
+        if (c.l < low) low = c.l;
+    });
+    const range = high - low || high * 0.01 || 1;
+    return { high: high + range * 0.05, low: low - range * 0.05 };
+}
+
+function priceToY(price, low, high) {
+    const range = high - low;
+    if (!range) return PADDING.top + chartHeight() / 2;
+    return PADDING.top + chartHeight() * (1 - (price - low) / range);
+}
+
+function formatPrice(price) {
+    return price >= 10 ? price.toFixed(2) : price.toFixed(5);
+}
+
+function formatTime(timestamp) {
+    const d = new Date(timestamp);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+}
+
+function formatDate(timestamp) {
+    const d = new Date(timestamp);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// DRAW
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const visible = getVisibleData();
+    if (!visible.length) return;
+    
+    const { high, low } = getPriceRange(visible);
+    const cw = chartWidth();
+    const ch = chartHeight();
+    const candleWidth = cw / visible.length;
+    const bodyWidth = Math.max(1, round(candleWidth * 0.7));
+    const halfBody = Math.max(1, Math.floor(bodyWidth / 2));
+    
+    // GRID
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 5; i++) {
+        const y = round(priceToY(low + (high - low) * i / 5, low, high));
+        ctx.beginPath();
+        ctx.moveTo(PADDING.left, y);
+        ctx.lineTo(W - PADDING.right, y);
+        ctx.stroke();
+    }
+    
+    // PRICE LABELS
+    ctx.fillStyle = COLORS.text;
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, Arial';
+    ctx.textAlign = 'left';
+    for (let i = 0; i <= 5; i++) {
+        const price = low + (high - low) * i / 5;
+        const y = round(priceToY(price, low, high));
+        ctx.fillText(formatPrice(price), W - PADDING.right + 6, y + 4);
+    }
+    
+    // TIME LABELS
+    ctx.fillStyle = COLORS.text;
+    ctx.textAlign = 'center';
+    const step = Math.ceil(visible.length / 8);
+    visible.forEach((c, i) => {
+        if (i % step === 0) {
+            const x = round(PADDING.left + i * candleWidth + candleWidth / 2);
+            ctx.fillText(formatTime(c.t), x, H - PADDING.bottom + 18);
+        }
+    });
+    
+    // CANDLES
+    const bulls = [], bears = [];
+    visible.forEach((c, i) => {
+        const isBull = c.c >= c.o;
+        const cx = round(PADDING.left + i * candleWidth + candleWidth / 2);
+        const bodyTop = round(priceToY(Math.max(c.o, c.c), low, high));
+        const bodyBot = round(priceToY(Math.min(c.o, c.c), low, high));
+        const bodyHeight = Math.max(1, bodyBot - bodyTop);
+        const wickTop = round(priceToY(c.h, low, high));
+        const wickBot = round(priceToY(c.l, low, high));
+        
+        (isBull ? bulls : bears).push({ cx, bodyTop, bodyHeight, wickTop, wickBot, bodyBot });
+    });
+    
+    // Draw wicks
+    ctx.strokeStyle = COLORS.bull;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    bulls.forEach(({ cx, bodyTop, bodyBot, wickTop, wickBot }) => {
+        if (wickTop < bodyTop) { ctx.moveTo(cx, wickTop); ctx.lineTo(cx, bodyTop); }
+        if (wickBot > bodyBot) { ctx.moveTo(cx, bodyBot); ctx.lineTo(cx, wickBot); }
+    });
+    ctx.stroke();
+    
+    ctx.strokeStyle = COLORS.bear;
+    ctx.beginPath();
+    bears.forEach(({ cx, bodyTop, bodyBot, wickTop, wickBot }) => {
+        if (wickTop < bodyTop) { ctx.moveTo(cx, wickTop); ctx.lineTo(cx, bodyTop); }
+        if (wickBot > bodyBot) { ctx.moveTo(cx, bodyBot); ctx.lineTo(cx, wickBot); }
+    });
+    ctx.stroke();
+    
+    // Draw bodies
+    ctx.fillStyle = COLORS.bull;
+    bulls.forEach(({ cx, bodyTop, bodyHeight }) => {
+        ctx.fillRect(cx - halfBody, bodyTop, bodyWidth, bodyHeight);
+    });
+    
+    ctx.fillStyle = COLORS.bear;
+    bears.forEach(({ cx, bodyTop, bodyHeight }) => {
+        ctx.fillRect(cx - halfBody, bodyTop, bodyWidth, bodyHeight);
+    });
+    
+    // LAST PRICE LINE
+    const last = visible[visible.length - 1];
+    const lastY = round(priceToY(last.c, low, high));
+    const isLastBull = last.c >= last.o;
+    
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = isLastBull ? COLORS.priceLineBull : COLORS.priceLineBear;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PADDING.left, lastY);
+    ctx.lineTo(W - PADDING.right, lastY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Price tag
+    ctx.fillStyle = isLastBull ? COLORS.priceLineBull : COLORS.priceLineBear;
+    ctx.fillRect(W - PADDING.right + 2, lastY - 10, PADDING.right - 4, 20);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px -apple-system';
+    ctx.textAlign = 'center';
+    ctx.fillText(formatPrice(last.c), W - PADDING.right / 2, lastY + 4);
+    
+    // CROSSHAIR
+    if (mouseX > PADDING.left && mouseX < W - PADDING.right && mouseY > PADDING.top && mouseY < H - PADDING.bottom) {
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = COLORS.crosshair;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mouseX, PADDING.top);
+        ctx.lineTo(mouseX, H - PADDING.bottom);
+        ctx.moveTo(PADDING.left, mouseY);
+        ctx.lineTo(W - PADDING.right, mouseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // Hover price
+        const hoverPrice = low + (high - low) * (1 - (mouseY - PADDING.top) / chartHeight());
+        ctx.fillStyle = COLORS.text;
+        ctx.font = '11px -apple-system';
+        ctx.textAlign = 'left';
+        ctx.fillText(formatPrice(hoverPrice), W - PADDING.right + 6, mouseY + 4);
+    }
+    
+    // UPDATE PRICE INFO
+    const idx = Math.floor((mouseX - PADDING.left) / candleWidth);
+    const hover = (idx >= 0 && idx < visible.length) ? visible[idx] : last;
+    const change = ((hover.c - hover.o) / hover.o * 100).toFixed(2);
+    
+    document.getElementById('pO').textContent = formatPrice(hover.o);
+    document.getElementById('pH').textContent = formatPrice(hover.h);
+    document.getElementById('pL').textContent = formatPrice(hover.l);
+    document.getElementById('pC').textContent = formatPrice(hover.c);
+    
+    const chgEl = document.getElementById('pChg');
+    chgEl.textContent = (hover.c >= hover.o ? '+' : '') + change + '%';
+    chgEl.className = 'price-change ' + (hover.c >= hover.o ? 'up' : 'down');
+    
+    // UPDATE STATUS
+    document.getElementById('sCount').textContent = data.length.toLocaleString();
+    if (data.length > 0) {
+        const first = new Date(data[0].t);
+        const last = new Date(data[data.length - 1].t);
+        document.getElementById('sRange').textContent = 
+            `${first.toLocaleDateString()} - ${last.toLocaleDateString()}`;
+    }
+}
+
+// TOOLTIP
+function updateTooltip(e) {
+    const rect = container.getBoundingClientRect();
+    const ex = e.clientX - rect.left;
+    const ey = e.clientY - rect.top;
+    
+    const visible = getVisibleData();
+    if (!visible.length) return;
+    
+    const candleWidth = chartWidth() / visible.length;
+    const idx = Math.floor((ex - PADDING.left) / candleWidth);
+    
+    if (idx >= 0 && idx < visible.length) {
+        const c = visible[idx];
+        const change = ((c.c - c.o) / c.o * 100).toFixed(2);
+        const changeClass = c.c >= c.o ? 'up' : 'down';
+        
+        tooltip.innerHTML = `
+            <div class="tooltip-time">${formatDate(c.t)}</div>
+            <div class="tooltip-row"><span class="tooltip-label">Open</span><span class="tooltip-value">${formatPrice(c.o)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">High</span><span class="tooltip-value">${formatPrice(c.h)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Low</span><span class="tooltip-value">${formatPrice(c.l)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Close</span><span class="tooltip-value">${formatPrice(c.c)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Change</span><span class="tooltip-value price-change ${changeClass}">${c.c >= c.o ? '+' : ''}${change}%</span></div>
+        `;
+        
+        tooltip.style.display = 'block';
+        const tw = tooltip.offsetWidth;
+        const th = tooltip.offsetHeight;
+        const tx = ex + 15 + tw > W ? ex - tw - 15 : ex + 15;
+        const ty = Math.max(PADDING.top, Math.min(ey - th / 2, H - PADDING.bottom - th));
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+    } else {
+        tooltip.style.display = 'none';
+    }
+}
+
+// EVENTS
+container.addEventListener('mousemove', e => {
+    const rect = container.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+    
+    if (isDragging) {
+        const dx = mouseX - dragStartX;
+        const delta = Math.round(-dx / (chartWidth() / viewCount));
+        viewStart = Math.max(0, Math.min(dragStartView + delta, data.length - viewCount));
+    }
+    
+    updateTooltip(e);
+    draw();
+});
+
+container.addEventListener('mouseleave', () => {
+    mouseX = -1;
+    mouseY = -1;
+    tooltip.style.display = 'none';
+    isDragging = false;
+    draw();
+});
+
+container.addEventListener('mousedown', e => {
+    isDragging = true;
+    dragStartX = e.clientX - container.getBoundingClientRect().left;
+    dragStartView = viewStart;
+});
+
+container.addEventListener('mouseup', () => {
+    isDragging = false;
+});
+
+container.addEventListener('wheel', e => {
+    e.preventDefault();
+    viewCount = Math.max(20, Math.min(data.length, viewCount + (e.deltaY > 0 ? 10 : -10)));
+    viewStart = Math.max(0, Math.min(viewStart, data.length - viewCount));
+    draw();
+}, { passive: false });
+
+// TIMEFRAME
+window.setTF = async function(tf) {
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    currentTimeframe = tf;
+    loading.style.display = 'flex';
+    loading.querySelector('.load-text').textContent = `Loading ${tf} candles...`;
+    
+    await loadData(tf);
+};
+
+// RESIZE
+function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = container.clientWidth;
+    H = container.clientHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(dpr, dpr);
+    draw();
+}
+
+new ResizeObserver(resize).observe(container);
+
+// LOAD DATA
+async function loadData(timeframe = '1h') {
+    try {
+        // Map timeframe to file name
+        const tfMap = {
+            '1m': '1min',
+            '5m': '5min',
+            '15m': '15min',
+            '1h': '1h',
+            '4h': '4h',
+            '1d': '1d'
+        };
+        
+        const tfFile = tfMap[timeframe] || '1h';
+        const filename = `candles_${tfFile}.json`;
+        
+        console.log(`Loading ${filename}...`);
+        const response = await fetch(filename);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load ${filename}`);
+        }
+        
+        const json = await response.json();
+        data = json.candles || [];
+        
+        // Start at the BEGINNING to see old data
+        viewStart = 0;
+        viewCount = Math.min(100, data.length);
+        
+        loading.style.display = 'none';
+        resize();
+        
+        console.log(`✓ Loaded ${data.length} ${timeframe} candles`);
+        console.log(`  Date range: ${new Date(data[0].t).toLocaleDateString()} - ${new Date(data[data.length-1].t).toLocaleDateString()}`);
+    } catch (error) {
+        console.error('Error loading data:', error);
+        loading.querySelector('.load-text').textContent = `Error: ${error.message}. Run generate_all_timeframes.py first.`;
+    }
+}
+
+// INIT
+loadData();
+</script>
+</body>
+</html>

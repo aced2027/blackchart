@@ -1,0 +1,92 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         QUICK START GUIDE - ORGANIZED TICK DATA                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+✅ SETUP COMPLETE!
+✅ Old data deleted
+✅ New folder structure created
+✅ Ready to download
+
+═══════════════════════════════════════════════════════════════════
+FOLDER STRUCTURE
+═══════════════════════════════════════════════════════════════════
+
+data/ticks/
+  ├── 2020/ (12 months)
+  ├── 2021/ (12 months)
+  ├── 2022/ (12 months)
+  ├── 2023/ (12 months)
+  ├── 2024/ (12 months) ← September is here
+  ├── 2025/ (12 months)
+  └── 2026/ (3 months: Jan, Feb, Mar)
+
+═══════════════════════════════════════════════════════════════════
+STEP 1: DOWNLOAD DATA
+═══════════════════════════════════════════════════════════════════
+
+Windows:
+  cd blackchart\backend
+  START_DOWNLOAD.bat
+
+Or manually:
+  cd blackchart/backend
+
+  # Download all years
+  python download_organized_by_year.py
+
+  # Or download one year at a time
+  python download_single_year.py 2025
+
+═══════════════════════════════════════════════════════════════════
+STEP 2: CHECK STATUS
+═══════════════════════════════════════════════════════════════════
+
+python check_organized_status.py
+
+Shows:
+- Which years are downloaded
+- Which months are complete
+- Total size and progress
+
+═══════════════════════════════════════════════════════════════════
+STEP 3: GENERATE CANDLES
+═══════════════════════════════════════════════════════════════════
+
+After download completes:
+  python generate_candles_fast.py
+
+═══════════════════════════════════════════════════════════════════
+STEP 4: START BACKEND
+═══════════════════════════════════════════════════════════════════
+
+python main.py
+
+═══════════════════════════════════════════════════════════════════
+RECOMMENDED DOWNLOAD ORDER
+═══════════════════════════════════════════════════════════════════
+
+Priority 1: 2024 (includes September you asked about)
+  python download_single_year.py 2024
+
+Priority 2: 2025 (current year)
+  python download_single_year.py 2025
+
+Priority 3: Historical data
+  python download_single_year.py 2023
+  python download_single_year.py 2022
+  python download_single_year.py 2021
+  python download_single_year.py 2020
+
+Priority 4: 2026 (partial year)
+  python download_single_year.py 2026
+
+═══════════════════════════════════════════════════════════════════
+ESTIMATED TIMES
+═══════════════════════════════════════════════════════════════════
+
+Per year: 1.5-2.5 hours
+All years: 10-15 hours
+
+You can download years in parallel by opening multiple terminals!
+
+═══════════════════════════════════════════════════════════════════

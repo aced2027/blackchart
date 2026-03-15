@@ -1,0 +1,104 @@
+{
+  "years": {
+    "2020": {
+      "year": 2020,
+      "downloaded": [],
+      "missing": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "not_started"
+    },
+    "2021": {
+      "year": 2021,
+      "downloaded": [],
+      "missing": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "not_started"
+    },
+    "2022": {
+      "year": 2022,
+      "downloaded": [],
+      "missing": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "not_started"
+    },
+    "2023": {
+      "year": 2023,
+      "downloaded": [],
+      "missing": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "not_started"
+    },
+    "2024": {
+      "year": 2024,
+      "downloaded": [],
+      "missing": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "not_started"
+    }
+  },
+  "summary": {
+    "total_expected": 60,
+    "total_downloaded": 0,
+    "total_missing": 60
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "dukascopy-fast-downloader",
+  "version": "1.0.0",
+  "description": "Fast parallel Dukascopy tick data downloader",
+  "main": "dukascopy_fast.js",
+  "scripts": {
+    "install-deps": "npm install dukascopy-node csv-writer readline",
+    "download": "node dukascopy_fast.js"
+  },
+  "dependencies": {
+    "dukascopy-node": "^0.9.0",
+    "csv-writer": "^1.6.0"
+  },
+  "keywords": ["dukascopy", "forex", "tick-data", "parallel"],
+  "author": "BlackChart",
+  "license": "MIT"
+}

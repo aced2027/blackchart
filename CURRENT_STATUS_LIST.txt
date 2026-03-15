@@ -1,0 +1,145 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         DOWNLOAD STATUS - YEAR BY YEAR, MONTH BY MONTH          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+CURRENT TIME: 2026-03-14 11:15 AM
+DOWNLOAD STATUS: IN PROGRESS (experiencing timeouts)
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2020 - ❌ NOT STARTED
+═══════════════════════════════════════════════════════════════════
+Status: 0/12 months downloaded
+
+✅ DOWNLOADED: None
+
+❌ MISSING (12 months):
+   January (01)    ❌
+   February (02)   ❌
+   March (03)      ❌
+   April (04)      ❌
+   May (05)        ❌
+   June (06)       ❌
+   July (07)       ❌
+   August (08)     ❌
+   September (09)  ❌
+   October (10)    ❌
+   November (11)   ❌
+   December (12)   ❌
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2021 - ❌ NOT STARTED
+═══════════════════════════════════════════════════════════════════
+Status: 0/12 months downloaded
+
+✅ DOWNLOADED: None
+
+❌ MISSING (12 months):
+   January (01)    ❌
+   February (02)   ❌
+   March (03)      ❌
+   April (04)      ❌
+   May (05)        ❌
+   June (06)       ❌
+   July (07)       ❌
+   August (08)     ❌
+   September (09)  ❌
+   October (10)    ❌
+   November (11)   ❌
+   December (12)   ❌
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2022 - ❌ NOT STARTED
+═══════════════════════════════════════════════════════════════════
+Status: 0/12 months downloaded
+
+✅ DOWNLOADED: None
+
+❌ MISSING (12 months):
+   January (01)    ❌
+   February (02)   ❌
+   March (03)      ❌
+   April (04)      ❌
+   May (05)        ❌
+   June (06)       ❌
+   July (07)       ❌
+   August (08)     ❌
+   September (09)  ❌
+   October (10)    ❌
+   November (11)   ❌
+   December (12)   ❌
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2023 - ❌ NOT STARTED
+═══════════════════════════════════════════════════════════════════
+Status: 0/12 months downloaded
+
+✅ DOWNLOADED: None
+
+❌ MISSING (12 months):
+   January (01)    ❌
+   February (02)   ❌
+   March (03)      ❌
+   April (04)      ❌
+   May (05)        ❌
+   June (06)       ❌
+   July (07)       ❌
+   August (08)     ❌
+   September (09)  ❌
+   October (10)    ❌
+   November (11)   ❌
+   December (12)   ❌
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2024 - ❌ NOT STARTED
+═══════════════════════════════════════════════════════════════════
+Status: 0/12 months downloaded
+
+✅ DOWNLOADED: None
+
+❌ MISSING (12 months):
+   January (01)    ❌
+   February (02)   ❌
+   March (03)      ❌
+   April (04)      ❌
+   May (05)        ❌
+   June (06)       ❌
+   July (07)       ❌
+   August (08)     ❌
+   September (09)  ❌ (PRIORITY - You asked about this)
+   October (10)    ❌
+   November (11)   ❌
+   December (12)   ❌
+
+═══════════════════════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════════════════════
+Total Expected: 60 months (2020-2024)
+Downloaded: 0 months (0.0%)
+Missing: 60 months (100.0%)
+
+Current File: eurusd_ticks.csv (111 MB) - Combined file
+
+═══════════════════════════════════════════════════════════════════
+COMMANDS TO CHECK STATUS
+═══════════════════════════════════════════════════════════════════
+
+# Show current status
+python show_download_status.py
+
+# Show list format
+python list_format.py
+
+# Live monitoring (updates every 5 seconds)
+python live_status.py
+
+═══════════════════════════════════════════════════════════════════
+DOWNLOAD IS EXPERIENCING TIMEOUTS
+═══════════════════════════════════════════════════════════════════
+
+The download process is running but experiencing many timeouts from
+Dukascopy server. This is common and the script has auto-retry.
+
+However, it may be slow. The download is still running in Terminal 4.
+
+You can monitor progress with:
+  python live_status.py

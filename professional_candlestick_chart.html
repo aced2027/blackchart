@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Professional Japanese Candlestick Chart</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; 
+      background: #f5f5f5; 
+      padding: 20px;
+    }
+    .container { 
+      max-width: 1400px; 
+      margin: 0 auto; 
+      background: white; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    .controls { 
+      display: flex; 
+      gap: 20px; 
+      margin-bottom: 15px; 
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn-group { display: flex; gap: 5px; }
+    button {
+      padding: 8px 16px;
+      border: 1px solid #ddd;
+      background: white;
+      cursor: pointer;
+      font-size: 12px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    button:hover { background: #f5f5f5; }
+    button.active { background: #333; color: white; border-color: #333; }
+    .ohlc-bar {
+      display: flex;
+      gap: 20px;
+      padding: 10px;
+      background: #fafafa;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .ohlc-bar span { color: #666; }
+    .ohlc-bar strong { color: #333; margin-left: 5px; }
+    #chartCanvas { 
+      display: block; 
+      cursor: crosshair; 
+      background: white;
+    }
+    input[type="number"] {
+      width: 80px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    label { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- CONTROLS -->
+    <div class="controls">
+      <div class="btn-group">
+        <button id="btnColorMode" class="active">Color Mode</button>
+        <button id="btnClassicMode">Classic Mode</button>
+      </div>
+      <div class="btn-group">
+        <button class="tf-btn active" data-tf="1m">1m</button>
+        <button class="tf-btn" data-tf="5m">5m</button>
+        <button class="tf-btn" data-tf="15m">15m</button>
+        <button class="tf-btn" data-tf="1H">1H</button>
+        <button class="tf-btn" data-tf="4H">4H</button>
+        <button class="tf-btn" data-tf="1D">1D</button>
+      </div>
+      <div>
+        <label>Count: <input type="number" id="candleCount" value="120" min="10" max="1000"></label>
+      </div>
+    </div>
+
+    <!-- OHLC BAR -->
+    <div class="ohlc-bar" id="ohlcBar">
+      <span>O: <strong id="ohlcO">--</strong></span>
+      <span>H: <strong id="ohlcH">--</strong></span>
+      <span>L: <strong id="ohlcL">--</strong></span>
+      <span>C: <strong id="ohlcC">--</strong></span>
+      <span>Δ <strong id="ohlcChange">--</strong></span>
+    </div>
+
+    <!-- CANVAS -->
+    <canvas id="chartCanvas"></canvas>
+  </div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: GLOBAL STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let MODE = 'COLOR'; // 'COLOR' or 'CLASSIC'
+let TIMEFRAME = '1H';
+let VISIBLE_COUNT = 120;
+let candles = [];
+let hoveredCandle = null;
+let mouseX = 0;
+let mouseY = 0;
+let showCrosshair = false;
+
+const canvas = document.getElementById('chartCanvas');
+const ctx = canvas.getContext('2d');
+
+// Padding
+const PAD = { top: 20, right: 70, bottom: 30, left: 8 };
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: DATA GENERATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function generateCandles(count = 120, startPrice = 65000, seed = 42) {
+  const result = [];
+  let price = startPrice;
+  let rng = seed;
+  const rand = () => { rng = (rng * 9301 + 49297) % 233280; return rng / 233280; };
+  const now = Date.now();
+  
+  for (let i = 0; i < count; i++) {
+    const volatility = price * (0.003 + rand() * 0.012);
+    const open = price + (rand() - 0.5) * volatility * 0.2;
+    const close = open + (rand() - 0.49) * volatility;
+    const high = Math.max(open, close) + rand() * volatility * 0.8;
+    const low = Math.min(open, close) - rand() * volatility * 0.8;
+    
+    // VALIDATE before pushing
+    if (high >= Math.max(open, close) && 
+        low <= Math.min(open, close) &&
+        open > 0 && close > 0 && !isNaN(open)) {
+      result.push({
+        t: now - (count - i) * 3600000,
+        o: +open.toFixed(2),
+        h: +high.toFixed(2),
+        l: +low.toFixed(2),
+        c: +close.toFixed(2),
+        v: Math.round(rand() * 1000)
+      });
+    }
+    price = close;
+  }
+  return result;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: CANVAS SETUP & RESIZE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function resizeCanvas() {
+  const container = canvas.parentElement;
+  const width = container.clientWidth - 40;
+  const height = 600;
+  
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = width + 'px';
+  canvas.style.height = height + 'px';
+  ctx.scale(dpr, dpr);
+  
+  draw();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: MAIN DRAW FUNCTION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function draw() {
+  // RULE 10: Reset ctx state
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 1;
+  ctx.textAlign = 'left';
+  
+  const width = canvas.width / (window.devicePixelRatio || 1);
+  const height = canvas.height / (window.devicePixelRatio || 1);
+  
+  // Clear
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  
+  // RULE 7: Guard empty data
+  if (!candles || candles.length === 0) {
+    ctx.fillStyle = '#999';
+    ctx.font = '14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data available', width / 2, height / 2);
+    return;
+  }
+  
+  const chartWidth = width - PAD.left - PAD.right;
+  const chartHeight = height - PAD.top - PAD.bottom;
+  
+  // Visible candles
+  const visibleStart = Math.max(0, candles.length - VISIBLE_COUNT);
+  const visibleEnd = candles.length;
+  const visibleCandles = candles.slice(visibleStart, visibleEnd);
+  const visibleCount = visibleCandles.length;
+  
+  if (visibleCount === 0) return;
+  
+  // Price range
+  let priceMin = Infinity;
+  let priceMax = -Infinity;
+  visibleCandles.forEach(c => {
+    priceMin = Math.min(priceMin, c.l);
+    priceMax = Math.max(priceMax, c.h);
+  });
+  
+  // RULE 6: Prevent divide by zero
+  let priceRange = priceMax - priceMin;
+  if (priceRange === 0) priceRange = priceMax * 0.01 || 1;
+  
+  const toY = (price) => {
+    return PAD.top + chartHeight * (1 - (price - priceMin) / priceRange);
+  };
+  
+  // RULE 2: Candle width formula
+  const slotWidth = chartWidth / visibleCount;
+  const candleWidth = Math.max(1, Math.round(slotWidth * 0.7));
+  const halfWidth = Math.round(candleWidth / 2);
+  
+  // Draw grid
+  drawGrid(width, height, chartWidth, chartHeight, priceMin, priceMax, priceRange, toY);
+  
+  // RULE 5: Batch draws by color
+  drawAllWicks(visibleCandles, slotWidth, toY, halfWidth);
+  drawAllBodies(visibleCandles, slotWidth, candleWidth, halfWidth, toY);
+  
+  // Draw axes
+  drawPriceAxis(width, height, chartHeight, priceMin, priceMax, priceRange, toY);
+  drawTimeAxis(width, height, visibleCandles, slotWidth, visibleCount);
+  
+  // Current price line
+  drawCurrentPriceLine(width, chartWidth, visibleCandles, toY);
+  
+  // Crosshair
+  if (showCrosshair) {
+    drawCrosshair(width, height, chartWidth, chartHeight);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: GRID DRAWING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawGrid(width, height, chartWidth, chartHeight, priceMin, priceMax, priceRange, toY) {
+  ctx.strokeStyle = 'rgba(200, 200, 200, 0.3)';
+  ctx.lineWidth = 1;
+  
+  // Horizontal grid lines
+  const priceSteps = 6;
+  for (let i = 0; i <= priceSteps; i++) {
+    const price = priceMin + (priceRange * i / priceSteps);
+    const y = Math.round(toY(price));
+    
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(width - PAD.right, y);
+    ctx.stroke();
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: WICK DRAWING (BATCHED)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawAllWicks(visibleCandles, slotWidth, toY, halfWidth) {
+  const bullWicks = [];
+  const bearWicks = [];
+  
+  visibleCandles.forEach((candle, i) => {
+    const isBull = candle.c >= candle.o;
+    const wickX = Math.round(PAD.left + i * slotWidth + slotWidth / 2);
+    
+    // RULE 3: Body bounds
+    const bodyTop = Math.round(toY(Math.max(candle.o, candle.c)));
+    const bodyBot = Math.round(toY(Math.min(candle.o, candle.c)));
+    
+    const highY = Math.round(toY(candle.h));
+    const lowY = Math.round(toY(candle.l));
+    
+    // RULE 4: Wick centered exactly
+    const wick = { x: wickX, highY, bodyTop, bodyBot, lowY };
+    if (isBull) bullWicks.push(wick);
+    else bearWicks.push(wick);
+  });
+  
+  // Draw bull wicks
+  if (MODE === 'COLOR') {
+    ctx.strokeStyle = '#26a69a';
+  } else {
+    ctx.strokeStyle = '#000000';
+  }
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  bullWicks.forEach(w => {
+    ctx.moveTo(w.x, w.highY);
+    ctx.lineTo(w.x, w.bodyTop);
+    ctx.moveTo(w.x, w.bodyBot);
+    ctx.lineTo(w.x, w.lowY);
+  });
+  ctx.stroke();
+  
+  // Draw bear wicks
+  if (MODE === 'COLOR') {
+    ctx.strokeStyle = '#ef5350';
+  } else {
+    ctx.strokeStyle = '#000000';
+  }
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  bearWicks.forEach(w => {
+    ctx.moveTo(w.x, w.highY);
+    ctx.lineTo(w.x, w.bodyTop);
+    ctx.moveTo(w.x, w.bodyBot);
+    ctx.lineTo(w.x, w.lowY);
+  });
+  ctx.stroke();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: BODY DRAWING (BATCHED)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawAllBodies(visibleCandles, slotWidth, candleWidth, halfWidth, toY) {
+  visibleCandles.forEach((candle, i) => {
+    const isBull = candle.c >= candle.o;
+    const x = Math.round(PAD.left + i * slotWidth + slotWidth / 2);
+    
+    // RULE 3: Body height formula
+    const bodyTop = Math.round(toY(Math.max(candle.o, candle.c)));
+    const bodyBot = Math.round(toY(Math.min(candle.o, candle.c)));
+    const bodyHeight = Math.max(1, bodyBot - bodyTop);
+    
+    const isDoji = Math.abs(candle.c - candle.o) / candle.o < 0.0005;
+    
+    if (MODE === 'COLOR') {
+      // COLOR MODE
+      if (isBull) {
+        ctx.fillStyle = '#26a69a';
+        ctx.fillRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+        
+        // RULE 9: Dashed border
+        ctx.setLineDash([3, 2]);
+        ctx.strokeStyle = '#26a69a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+        ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = '#ef5350';
+        ctx.fillRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+        
+        ctx.setLineDash([3, 2]);
+        ctx.strokeStyle = '#ef5350';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+        ctx.setLineDash([]);
+      }
+      
+      // Yellow diamond for doji
+      if (isDoji && candleWidth >= 4) {
+        ctx.fillStyle = '#ffeb3b';
+        ctx.beginPath();
+        ctx.moveTo(x, bodyTop - 3);
+        ctx.lineTo(x + 3, bodyTop);
+        ctx.lineTo(x, bodyTop + 3);
+        ctx.lineTo(x - 3, bodyTop);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else {
+      // CLASSIC MODE
+      if (isBull) {
+        // Hollow white with black border
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+      } else {
+        // Solid black
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x - halfWidth, bodyTop, candleWidth, bodyHeight);
+      }
+    }
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: PRICE AXIS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawPriceAxis(width, height, chartHeight, priceMin, priceMax, priceRange, toY) {
+  ctx.fillStyle = MODE === 'CLASSIC' ? '#000000' : '#333333';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  
+  const priceSteps = 6;
+  for (let i = 0; i <= priceSteps; i++) {
+    const price = priceMin + (priceRange * i / priceSteps);
+    const y = Math.round(toY(price));
+    const priceText = price.toLocaleString('en-US', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
+    
+    ctx.fillText(priceText, width - PAD.right + 65, y + 3);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: TIME AXIS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawTimeAxis(width, height, visibleCandles, slotWidth, visibleCount) {
+  ctx.fillStyle = MODE === 'CLASSIC' ? '#000000' : '#333333';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  
+  const step = Math.ceil(visibleCount / 8);
+  for (let i = 0; i < visibleCount; i += step) {
+    if (i >= visibleCandles.length) continue;
+    const candle = visibleCandles[i];
+    const x = Math.round(PAD.left + i * slotWidth + slotWidth / 2);
+    const date = new Date(candle.t);
+    const timeText = date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    
+    ctx.fillText(timeText, x, height - PAD.bottom + 20);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: CURRENT PRICE LINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawCurrentPriceLine(width, chartWidth, visibleCandles, toY) {
+  if (visibleCandles.length === 0) return;
+  
+  const lastCandle = visibleCandles[visibleCandles.length - 1];
+  const currentPriceY = Math.round(toY(lastCandle.c));
+  
+  const isBull = visibleCandles.length > 1 ? 
+    lastCandle.c >= visibleCandles[visibleCandles.length - 2].c : true;
+  
+  let lineColor;
+  if (MODE === 'COLOR') {
+    lineColor = isBull ? '#26a69a' : '#ef5350';
+  } else {
+    lineColor = '#000000';
+  }
+  
+  // Dashed line
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(PAD.left, currentPriceY);
+  ctx.lineTo(width - PAD.right, currentPriceY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Price tag
+  const priceText = lastCandle.c.toLocaleString('en-US', { 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  });
+  const tagWidth = 60;
+  const tagHeight = 18;
+  const tagX = width - PAD.right + 5;
+  const tagY = currentPriceY - tagHeight / 2;
+  
+  ctx.fillStyle = lineColor;
+  ctx.fillRect(tagX, tagY, tagWidth, tagHeight);
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(priceText, tagX + tagWidth / 2, tagY + tagHeight / 2 + 3);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: CROSSHAIR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function drawCrosshair(width, height, chartWidth, chartHeight) {
+  if (mouseX < PAD.left || mouseX > width - PAD.right ||
+      mouseY < PAD.top || mouseY > height - PAD.bottom) return;
+  
+  ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 2]);
+  
+  // Horizontal
+  ctx.beginPath();
+  ctx.moveTo(PAD.left, mouseY);
+  ctx.lineTo(width - PAD.right, mouseY);
+  ctx.stroke();
+  
+  // Vertical
+  ctx.beginPath();
+  ctx.moveTo(mouseX, PAD.top);
+  ctx.lineTo(mouseX, height - PAD.bottom);
+  ctx.stroke();
+  
+  ctx.setLineDash([]);
+  
+  // Tooltip
+  if (hoveredCandle) {
+    const tooltipX = mouseX + 15;
+    const tooltipY = mouseY + 15;
+    const tooltipWidth = 180;
+    const tooltipHeight = 110;
+    
+    // Background
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+    ctx.strokeStyle = '#cccccc';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+    
+    // Text
+    ctx.fillStyle = '#333333';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'left';
+    
+    const date = new Date(hoveredCandle.t);
+    const dateStr = date.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    ctx.fillText(`Time: ${dateStr}`, tooltipX + 8, tooltipY + 18);
+    ctx.fillText(`Open: ${hoveredCandle.o.toFixed(2)}`, tooltipX + 8, tooltipY + 33);
+    ctx.fillText(`High: ${hoveredCandle.h.toFixed(2)}`, tooltipX + 8, tooltipY + 48);
+    ctx.fillText(`Low: ${hoveredCandle.l.toFixed(2)}`, tooltipX + 8, tooltipY + 63);
+    ctx.fillText(`Close: ${hoveredCandle.c.toFixed(2)}`, tooltipX + 8, tooltipY + 78);
+    
+    const change = ((hoveredCandle.c - hoveredCandle.o) / hoveredCandle.o * 100).toFixed(2);
+    const changeColor = hoveredCandle.c >= hoveredCandle.o ? '#26a69a' : '#ef5350';
+    ctx.fillStyle = MODE === 'CLASSIC' ? '#000000' : changeColor;
+    ctx.fillText(`Change: ${change}%`, tooltipX + 8, tooltipY + 93);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: MOUSE HANDLERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+  showCrosshair = true;
+  
+  // Find hovered candle
+  const width = canvas.width / (window.devicePixelRatio || 1);
+  const chartWidth = width - PAD.left - PAD.right;
+  const visibleStart = Math.max(0, candles.length - VISIBLE_COUNT);
+  const visibleCandles = candles.slice(visibleStart);
+  const slotWidth = chartWidth / visibleCandles.length;
+  
+  if (mouseX >= PAD.left && mouseX <= width - PAD.right) {
+    const index = Math.floor((mouseX - PAD.left) / slotWidth);
+    if (index >= 0 && index < visibleCandles.length) {
+      hoveredCandle = visibleCandles[index];
+      updateOHLCBar(hoveredCandle);
+    } else {
+      hoveredCandle = null;
+    }
+  } else {
+    hoveredCandle = null;
+  }
+  
+  draw();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  showCrosshair = false;
+  hoveredCandle = null;
+  clearOHLCBar();
+  draw();
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: OHLC BAR UPDATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateOHLCBar(candle) {
+  document.getElementById('ohlcO').textContent = candle.o.toLocaleString('en-US');
+  document.getElementById('ohlcH').textContent = candle.h.toLocaleString('en-US');
+  document.getElementById('ohlcL').textContent = candle.l.toLocaleString('en-US');
+  document.getElementById('ohlcC').textContent = candle.c.toLocaleString('en-US');
+  
+  const change = ((candle.c - candle.o) / candle.o * 100).toFixed(2);
+  const changeEl = document.getElementById('ohlcChange');
+  changeEl.textContent = (change >= 0 ? '+' : '') + change + '%';
+  changeEl.style.color = change >= 0 ? '#26a69a' : '#ef5350';
+}
+
+function clearOHLCBar() {
+  document.getElementById('ohlcO').textContent = '--';
+  document.getElementById('ohlcH').textContent = '--';
+  document.getElementById('ohlcL').textContent = '--';
+  document.getElementById('ohlcC').textContent = '--';
+  document.getElementById('ohlcChange').textContent = '--';
+  document.getElementById('ohlcChange').style.color = '#666';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: UI CONTROLS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+document.getElementById('btnColorMode').addEventListener('click', () => {
+  MODE = 'COLOR';
+  document.getElementById('btnColorMode').classList.add('active');
+  document.getElementById('btnClassicMode').classList.remove('active');
+  draw();
+});
+
+document.getElementById('btnClassicMode').addEventListener('click', () => {
+  MODE = 'CLASSIC';
+  document.getElementById('btnClassicMode').classList.add('active');
+  document.getElementById('btnColorMode').classList.remove('active');
+  draw();
+});
+
+document.querySelectorAll('.tf-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    TIMEFRAME = btn.dataset.tf;
+    // In real app, would fetch different timeframe data
+    draw();
+  });
+});
+
+document.getElementById('candleCount').addEventListener('change', (e) => {
+  VISIBLE_COUNT = Math.max(10, Math.min(1000, parseInt(e.target.value) || 120));
+  e.target.value = VISIBLE_COUNT;
+  draw();
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION: INITIALIZATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+window.addEventListener('resize', resizeCanvas);
+
+// Generate initial data
+candles = generateCandles(500, 65000, 42);
+
+// Initial render
+resizeCanvas();
+
+// Performance test
+console.log('Chart initialized with', candles.length, 'candles');
+const start = performance.now();
+draw();
+const end = performance.now();
+console.log('Initial render time:', (end - start).toFixed(2), 'ms');
+
+</script>
+</body>
+</html>

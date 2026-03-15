@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candlestick Chart</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#fff;--fg:#000;--dim:#666;--faint:#ccc;--border:#e8e8e8;--font:'IBM Plex Mono','Courier New',monospace}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:11px;-webkit-font-smoothing:antialiased}
+#app{display:flex;flex-direction:column;height:100vh;min-height:520px}
+/* TOP BAR */
+#topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.sym{font-size:13px;font-weight:500;letter-spacing:.05em;min-width:60px}
+.tf-group{display:flex;border:1px solid var(--border)}
+.tf-btn{background:none;border:none;border-right:1px solid var(--border);padding:4px 10px;font-family:var(--font);font-size:10px;letter-spacing:.04em;cursor:pointer;color:var(--dim);transition:all .1s}
+.tf-btn:last-child{border-right:none}
+.tf-btn:hover{background:#f5f5f5;color:var(--fg)}
+.tf-btn.active{background:var(--fg);color:var(--bg)}
+.spacer{flex:1}
+#ohlc-bar{display:flex;gap:14px;align-items:center;font-size:10px;color:var(--dim);letter-spacing:.02em}
+#ohlc-bar b{color:var(--fg);font-weight:500}
+#pct{font-weight:500}
+/* CHART */
+#cw{flex:1;position:relative;overflow:hidden;cursor:crosshair}
+canvas{display:block;position:absolute;top:0;left:0}
+#tip{position:absolute;background:var(--bg);border:1px solid var(--fg);padding:9px 11px;font-size:10px;font-family:var(--font);line-height:1.9;pointer-events:none;display:none;z-index:10;min-width:130px}
+.td{color:var(--dim);margin-bottom:2px;font-size:9px}
+.tr{display:flex;justify-content:space-between;gap:12px}
+.tv{font-weight:500}
+/* STATUS */
+#status{display:flex;align-items:center;gap:20px;padding:5px 16px;border-top:1px solid var(--border);font-size:9px;color:var(--faint);letter-spacing:.04em;flex-shrink:0}
+#status b{color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="topbar">
+<span class="sym">EURUSD</span>
+<div class="tf-group">
+<button class="tf-btn" onclick="setTF('1m')">1m</button>
+<button class="tf-btn" onclick="setTF('5m')">5m</button>
+<button class="tf-btn" onclick="setTF('15m')">15m</button>
+<button class="tf-btn active" id="tf-1h" onclick="setTF('1h')">1H</button>
+<button class="tf-btn" onclick="setTF('4h')">4H</button>
+<button class="tf-btn" onclick="setTF('1d')">1D</button>
+</div>
+<div class="spacer"></div>
+<div id="ohlc-bar">
+<span>O&nbsp;<b id="vO">—</b></span>
+<span>H&nbsp;<b id="vH">—</b></span>
+<span>L&nbsp;<b id="vL">—</b></span>
+<span>C&nbsp;<b id="vC">—</b></span>
+<span id="pct">—</span>
+</div>
+</div>
+<div id="cw">
+<canvas id="cv"></canvas>
+<div id="tip"></div>
+</div>
+<div id="status">
+<span><b id="sC">—</b> candles</span>
+<span>last <b id="sL">—</b></span>
+<span id="sH">scroll=zoom · drag=pan</span>
+</div>
+</div>
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+const P={top:16,right:70,bot:28,left:4};
+// ── STATE ─────────────────────────────────────────────────────
+let data=[],vStart=0,vCount=80,drag=false,dragX=0,dragS=0,mx=-1,my=-1,dpr=1,W=0,H=0;
+const wrap=document.getElementById('cw'),cv=document.getElementById('cv'),ctx=cv.getContext('2d'),tip=document.getElementById('tip');
+// ── DATA ──────────────────────────────────────────────────────
+function mkRng(s){return()=>{s=(s*9301+49297)%233280;return s/233280}}
+function genData(n,sp,seed){const r=mkRng(seed||42);let p=sp||1000;const now=Date.now(),out=[];for(let i=0;i<n;i++){const v=p*(0.003+r()*0.013);const o=p+(r()-.5)*v*.1;const c=o+(r()-.487)*v;const h=Math.max(o,c)+r()*v*.9;const l=Math.min(o,c)-r()*v*.9;if(h>=Math.max(o,c)&&l<=Math.min(o,c)&&l>0)out.push({t:now-(n-i)*3600000,o:+o.toFixed(2),h:+h.toFixed(2),l:+l.toFixed(2),c:+c.toFixed(2)});p=c;}return out;}
+// ── HELPERS ───────────────────────────────────────────────────
+const cW=()=>W-P.left-P.right;
+const cH=()=>H-P.top-P.bot;
+const px=v=>Math.round(v);
+function slice(){const s=Math.max(0,Math.min(vStart,data.length-1));return data.slice(s,Math.min(s+vCount,data.length));}
+function extent(sl){let hi=-Infinity,lo=Infinity;sl.forEach(c=>{if(c.h>hi)hi=c.h;if(c.l<lo)lo=c.l});const rng=hi-lo||hi*.01||1;return{hi:hi+rng*.07,lo:lo-rng*.04};}
+function toY(p,lo,hi){const rng=hi-lo;if(!rng)return P.top+cH()/2;return P.top+cH()*(1-(p-lo)/rng);}
+function fmt(v){return v>=1000?v.toLocaleString('en',{maximumFractionDigits:2}):v.toFixed(4)}
+// ── DRAW ──────────────────────────────────────────────────────
+function draw(){
+// reset ctx
+ctx.setLineDash([]);
+ctx.globalAlpha=1;
+ctx.lineWidth=1;
+ctx.textAlign='left';
+ctx.clearRect(0,0,cv.width,cv.height);
+const sl=slice();
+if(!sl.length)return;
+const{hi,lo}=extent(sl);
+const w=cW(),h=cH();
+const slot=w/sl.length;
+const cw=Math.max(1,px(slot*.65));
+const hw=Math.max(1,Math.floor(cw/2));
+// GRID
+ctx.strokeStyle='rgba(0,0,0,.05)';
+ctx.lineWidth=.5;
+for(let i=0;i<=5;i++){
+const y=px(toY(lo+(hi-lo)*i/5,lo,hi));
+ctx.beginPath();
+ctx.moveTo(P.left,y);
+ctx.lineTo(W-P.right,y);
+ctx.stroke();
+}
+// PRICE AXIS
+ctx.fillStyle='#aaa';
+ctx.font="10px 'IBM Plex Mono',monospace";
+ctx.textAlign='left';
+for(let i=0;i<=5;i++){
+const p=lo+(hi-lo)*i/5;
+const y=px(toY(p,lo,hi));
+ctx.fillText(fmt(p),W-P.right+5,y+3);
+}
+// TIME AXIS
+ctx.fillStyle='#bbb';
+ctx.textAlign='center';
+const ev=Math.ceil(sl.length/7);
+sl.forEach((c,i)=>{
+if(i%ev!==0)return;
+const x=px(P.left+i*slot+slot/2);
+const d=new Date(c.t);
+ctx.fillText(String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'),x,H-P.bot+14);
+});
+// PRE-CALC candle pixels
+const bulls=[],bears=[];
+sl.forEach((c,i)=>{
+const isBull=c.c>=c.o;
+const cx=px(P.left+i*slot+slot/2);
+const bt=px(toY(Math.max(c.o,c.c),lo,hi));
+const bb=px(toY(Math.min(c.o,c.c),lo,hi));
+const bh=Math.max(1,bb-bt);
+const wt=px(toY(c.h,lo,hi));
+const wb=px(toY(c.l,lo,hi));
+(isBull?bulls:bears).push({cx,bt,bb,bh,wt,wb});
+});
+// PASS 1 — ALL WICKS batched
+ctx.strokeStyle='#000';
+ctx.lineWidth=1;
+ctx.beginPath();
+[...bulls,...bears].forEach(({cx,bt,bb,wt,wb})=>{
+if(wt<bt){ctx.moveTo(cx,wt);ctx.lineTo(cx,bt)}   // upper wick
+if(wb>bb){ctx.moveTo(cx,bb);ctx.lineTo(cx,wb)}    // lower wick
+});
+ctx.stroke();
+// PASS 2 — BULL BODIES (hollow: white fill + black border)
+ctx.fillStyle='#fff';
+ctx.strokeStyle='#000';
+ctx.lineWidth=1;
+bulls.forEach(({cx,bt,bh})=>{
+ctx.fillRect(cx-hw,bt,cw,bh);
+ctx.strokeRect(cx-hw+.5,bt+.5,cw-1,Math.max(0,bh-1));
+});
+// PASS 3 — BEAR BODIES (solid black)
+ctx.fillStyle='#000';
+bears.forEach(({cx,bt,bh})=>ctx.fillRect(cx-hw,bt,cw,bh));
+// LAST PRICE LINE + TAG
+const last=sl[sl.length-1];
+const ly=px(toY(last.c,lo,hi));
+const isBullLast=last.c>=last.o;
+ctx.setLineDash([2,4]);
+ctx.strokeStyle='rgba(0,0,0,.2)';
+ctx.lineWidth=.5;
+ctx.beginPath();
+ctx.moveTo(P.left,ly);
+ctx.lineTo(W-P.right,ly);
+ctx.stroke();
+ctx.setLineDash([]);
+// tag box
+const tH=16,tW=P.right-2;
+ctx.fillStyle=isBullLast?'#222':'#888';
+ctx.fillRect(W-P.right+1,ly-tH/2,tW,tH);
+ctx.fillStyle='#fff';
+ctx.font="bold 9px 'IBM Plex Mono',monospace";
+ctx.textAlign='center';
+ctx.fillText(fmt(last.c),W-P.right+tW/2,ly+3);
+// CROSSHAIR
+if(mx>P.left&&mx<W-P.right&&my>P.top&&my<H-P.bot){
+ctx.setLineDash([2,4]);
+ctx.strokeStyle='rgba(0,0,0,.18)';
+ctx.lineWidth=.5;
+ctx.beginPath();
+ctx.moveTo(mx,P.top);
+ctx.lineTo(mx,H-P.bot);
+ctx.moveTo(P.left,my);
+ctx.lineTo(W-P.right,my);
+ctx.stroke();
+ctx.setLineDash([]);
+// hover price label
+const hp=lo+(hi-lo)*(1-(my-P.top)/cH());
+ctx.fillStyle='#555';
+ctx.font="9px 'IBM Plex Mono',monospace";
+ctx.textAlign='left';
+ctx.fillText(fmt(hp),W-P.right+5,my+3);
+}
+// OHLC BAR update
+const idx=Math.floor((mx-P.left)/slot);
+const hov=(idx>=0&&idx<sl.length)?sl[idx]:last;
+const pct=((hov.c-hov.o)/hov.o*100).toFixed(2);
+document.getElementById('vO').textContent=fmt(hov.o);
+document.getElementById('vH').textContent=fmt(hov.h);
+document.getElementById('vL').textContent=fmt(hov.l);
+document.getElementById('vC').textContent=fmt(hov.c);
+const pEl=document.getElementById('pct');
+pEl.textContent=(hov.c>=hov.o?'+':'')+pct+'%';
+pEl.style.color=hov.c>=hov.o?'#000':'#888';
+document.getElementById('sC').textContent=data.length;
+document.getElementById('sL').textContent=fmt(last.c);
+}
+// ── TOOLTIP ───────────────────────────────────────────────────
+function updateTip(e){
+const rc=wrap.getBoundingClientRect();
+const ex=e.clientX-rc.left,ey=e.clientY-rc.top;
+const sl=slice();
+if(!sl.length)return;
+const slot=cW()/sl.length;
+const i=Math.floor((ex-P.left)/slot);
+if(i>=0&&i<sl.length){
+const c=sl[i],pct=((c.c-c.o)/c.o*100).toFixed(2);
+const d=new Date(c.t);
+const dt=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'  '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+tip.innerHTML=`<div class="td">${dt}</div><div class="tr"><span>O</span><span class="tv">${fmt(c.o)}</span></div><div class="tr"><span>H</span><span class="tv">${fmt(c.h)}</span></div><div class="tr"><span>L</span><span class="tv">${fmt(c.l)}</span></div><div class="tr"><span>C</span><span class="tv">${fmt(c.c)}</span></div><div class="tr"><span>Δ</span><span class="tv">${c.c>=c.o?'+':''}${pct}%</span></div>`;
+tip.style.display='block';
+const tw=tip.offsetWidth,th=tip.offsetHeight;
+const tx=ex+14+tw>W?ex-tw-8:ex+14;
+const ty=Math.max(P.top,Math.min(ey-th/2,H-P.bot-th));
+tip.style.left=tx+'px';
+tip.style.top=ty+'px';
+}else tip.style.display='none';
+}
+// ── EVENTS ────────────────────────────────────────────────────
+wrap.addEventListener('mousemove',e=>{
+const rc=wrap.getBoundingClientRect();
+mx=e.clientX-rc.left;
+my=e.clientY-rc.top;
+if(drag){
+const dx=mx-dragX;
+const delta=Math.round(-dx/(cW()/vCount));
+vStart=Math.max(0,Math.min(dragS+delta,data.length-vCount));
+}
+updateTip(e);
+draw();
+});
+wrap.addEventListener('mouseleave',()=>{
+mx=-1;
+my=-1;
+tip.style.display='none';
+drag=false;
+wrap.style.cursor='crosshair';
+draw()
+});
+wrap.addEventListener('mousedown',e=>{
+drag=true;
+dragX=e.clientX-wrap.getBoundingClientRect().left;
+dragS=vStart;
+wrap.style.cursor='grabbing'
+});
+wrap.addEventListener('mouseup',()=>{
+drag=false;
+wrap.style.cursor='crosshair'
+});
+wrap.addEventListener('wheel',e=>{
+e.preventDefault();
+vCount=Math.max(10,Math.min(data.length,vCount+(e.deltaY>0?8:-8)));
+vStart=Math.max(0,Math.min(vStart,data.length-vCount));
+draw();
+},{passive:false});
+// ── TIMEFRAME ─────────────────────────────────────────────────
+window.setTF=function(tf){
+document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
+const btn=document.querySelector(`.tf-btn[onclick="setTF('${tf}')"]`);
+if(btn)btn.classList.add('active');
+const starts={'1m':42500,'5m':43100,'15m':44000,'1h':65000,'4h':62000,'1d':58000};
+data=genData(300,starts[tf]||65000,Math.floor(Math.random()*99999));
+vCount=80;
+vStart=Math.max(0,data.length-vCount);
+draw();
+};
+// ── RESIZE ────────────────────────────────────────────────────
+function resize(){
+dpr=window.devicePixelRatio||1;
+W=wrap.clientWidth;
+H=wrap.clientHeight;
+cv.width=Math.round(W*dpr);
+cv.height=Math.round(H*dpr);
+cv.style.width=W+'px';
+cv.style.height=H+'px';
+ctx.scale(dpr,dpr);
+draw();
+}
+new ResizeObserver(resize).observe(wrap);
+// ── INIT ──────────────────────────────────────────────────────
+const t0=performance.now();
+data=genData(300,65000,42);
+vCount=80;
+vStart=Math.max(0,data.length-vCount);
+resize();
+const ms=(performance.now()-t0).toFixed(1);
+document.getElementById('sH').textContent=`${data.length} candles in ${ms}ms · scroll=zoom · drag=pan`;
+</script>
+</body>
+</html>

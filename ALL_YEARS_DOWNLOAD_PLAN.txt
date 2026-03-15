@@ -1,0 +1,118 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         COMPLETE DOWNLOAD PLAN - ALL YEARS                       ║
+║         2020, 2021, 2022, 2023, 2024, 2025, 2026                 ║
+╚══════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2020 - 12 MONTHS
+═══════════════════════════════════════════════════════════════════
+Status: 🔄 DOWNLOADING (Terminal 4 - experiencing timeouts)
+Command: python auto_download_all.py (includes 2020-2023)
+
+Months needed:
+✅ Jan ✅ Feb ✅ Mar ✅ Apr ✅ May ✅ Jun
+✅ Jul ✅ Aug ✅ Sep ✅ Oct ✅ Nov ✅ Dec
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2021 - 12 MONTHS
+═══════════════════════════════════════════════════════════════════
+Status: ⏳ QUEUED (Terminal 4 - after 2020)
+Command: python auto_download_all.py (includes 2020-2023)
+
+Months needed:
+✅ Jan ✅ Feb ✅ Mar ✅ Apr ✅ May ✅ Jun
+✅ Jul ✅ Aug ✅ Sep ✅ Oct ✅ Nov ✅ Dec
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2022 - 12 MONTHS
+═══════════════════════════════════════════════════════════════════
+Status: ⏳ QUEUED (Terminal 4 - after 2021)
+Command: python auto_download_all.py (includes 2020-2023)
+
+Months needed:
+✅ Jan ✅ Feb ✅ Mar ✅ Apr ✅ May ✅ Jun
+✅ Jul ✅ Aug ✅ Sep ✅ Oct ✅ Nov ✅ Dec
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2023 - 12 MONTHS
+═══════════════════════════════════════════════════════════════════
+Status: ⏳ QUEUED (Terminal 4 - after 2022)
+Command: python auto_download_all.py (includes 2020-2023)
+
+Months needed:
+✅ Jan ✅ Feb ✅ Mar ✅ Apr ✅ May ✅ Jun
+✅ Jul ✅ Aug ✅ Sep ✅ Oct ✅ Nov ✅ Dec
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2024 - 12 MONTHS (PRIORITY: September)
+═══════════════════════════════════════════════════════════════════
+Status: ❌ NOT STARTED
+Command: python download_month_by_month.py EURUSD 2024 1 2024 12
+
+Months needed:
+❌ Jan ❌ Feb ❌ Mar ❌ Apr ❌ May ❌ Jun
+❌ Jul ❌ Aug ❌ Sep ❌ Oct ❌ Nov ❌ Dec
+
+PRIORITY MONTH: September (09)
+Command: python download_september_2024.py
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2025 - 12 MONTHS
+═══════════════════════════════════════════════════════════════════
+Status: 🔄 DOWNLOADING NOW (Terminal 6)
+Command: python download_2025.py
+
+Months progress:
+🔄 Jan (downloading) ⏳ Feb ⏳ Mar ⏳ Apr ⏳ May ⏳ Jun
+⏳ Jul ⏳ Aug ⏳ Sep ⏳ Oct ⏳ Nov ⏳ Dec
+
+═══════════════════════════════════════════════════════════════════
+YEAR 2026 - 3 MONTHS (Jan, Feb, Mar only)
+═══════════════════════════════════════════════════════════════════
+Status: ❌ NOT STARTED
+Command: python download_2026.py
+
+Months needed:
+❌ Jan ❌ Feb ❌ Mar
+
+═══════════════════════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════════════════════
+
+Total months needed: 75 months
+  2020: 12 months
+  2021: 12 months
+  2022: 12 months
+  2023: 12 months
+  2024: 12 months
+  2025: 12 months
+  2026: 3 months
+
+Currently downloading: 60 months (2020-2023 + 2025)
+Remaining: 15 months (2024 + 2026)
+
+═══════════════════════════════════════════════════════════════════
+QUICK COMMANDS TO DOWNLOAD REMAINING
+═══════════════════════════════════════════════════════════════════
+
+# Download 2024 (all months)
+python download_month_by_month.py EURUSD 2024 1 2024 12
+
+# Download September 2024 only
+python download_september_2024.py
+
+# Download 2026 (Jan-Mar)
+python download_2026.py
+
+═══════════════════════════════════════════════════════════════════
+ESTIMATED COMPLETION TIMES
+═══════════════════════════════════════════════════════════════════
+
+2020-2023 (Terminal 4): 6-10 hours (if timeouts resolve)
+2025 (Terminal 6): 1.5-2.5 hours ✅ RUNNING WELL
+2024: 1.5-2.5 hours (not started)
+2026: 20-30 minutes (not started)
+
+Total: 9-15 hours for all data
+
+═══════════════════════════════════════════════════════════════════

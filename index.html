@@ -248,14 +248,12 @@ canvas {
         <span class="symbol-desc">Euro / US Dollar</span>
     </div>
     <div class="tf-group">
-        <button class="tf-btn" onclick="setTF('1')">1</button>
         <button class="tf-btn" onclick="setTF('5')">5</button>
         <button class="tf-btn" onclick="setTF('15')">15</button>
         <button class="tf-btn" onclick="setTF('30')">30</button>
         <button class="tf-btn active" onclick="setTF('60')">1H</button>
         <button class="tf-btn" onclick="setTF('240')">4H</button>
         <button class="tf-btn" onclick="setTF('D')">D</button>
-        <button class="tf-btn" onclick="setTF('W')">W</button>
     </div>
     <div class="spacer"></div>
     <button class="top-btn">Indicators</button>
@@ -566,7 +564,6 @@ window.setTF = async function(tf) {
     
     // Map button values to timeframe names
     const tfMap = {
-        '1': '1min',
         '5': '5min',
         '15': '15min',
         '30': '30min',
@@ -613,7 +610,6 @@ window.setTF = async function(tf) {
         
         // Adjust view based on timeframe
         const defaultCounts = {
-            '1min': 500,
             '5min': 300,
             '15min': 200,
             '30min': 150,
